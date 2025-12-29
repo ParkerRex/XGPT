@@ -1,0 +1,76 @@
+# Architecture
+
+## Data Flow
+
+1. **Scraping**: Twitter/X -> SQLite (users/tweets tables)
+2. **Embedding**: Tweets -> OpenAI API -> embeddings table
+3. **Search**: Question -> embedding -> cosine similarity -> relevant tweets -> GPT answer
+
+## Project Structure
+
+```
+xgpt/
+├── src/
+│   ├── cli.ts                 # Main CLI entry point
+│   ├── commands/
+│   │   ├── scrape.ts          # Tweet scraping
+│   │   ├── embed.ts           # Embedding generation
+│   │   ├── ask.ts             # Question answering
+│   │   ├── config.ts          # Configuration management
+│   │   ├── interactive.ts     # Interactive mode
+│   │   └── index.ts           # Command exports
+│   ├── database/
+│   │   ├── connection.ts      # SQLite connection (WAL mode)
+│   │   ├── schema.ts          # Drizzle ORM schema
+│   │   ├── queries.ts         # Database queries
+│   │   ├── migrate-json.ts    # JSON migration
+│   │   └── optimization.ts    # Performance tools
+│   ├── config/
+│   │   ├── manager.ts         # Config persistence
+│   │   └── schema.ts          # Config schema
+│   ├── errors/
+│   │   ├── types.ts           # Error classes
+│   │   ├── handler.ts         # Error handling
+│   │   └── index.ts           # Exports
+│   ├── rateLimit/
+│   │   ├── manager.ts         # Token bucket algorithm
+│   │   ├── config.ts          # Rate limit profiles
+│   │   └── estimator.ts       # Time estimates
+│   ├── prompts/
+│   │   ├── contentType.ts     # Content type selection
+│   │   ├── searchScope.ts     # Keyword filtering
+│   │   └── timeRange.ts       # Date range selection
+│   ├── ui/
+│   │   ├── progress.ts        # Progress bars
+│   │   ├── spinner.ts         # Loading spinners
+│   │   └── status.ts          # Status lines
+│   ├── types/
+│   │   └── common.ts          # TypeScript types
+│   └── utils/
+│       ├── dateUtils.ts       # Date utilities
+│       ├── array.ts           # Array chunking
+│       └── math.ts            # Cosine similarity
+├── data/
+│   └── xgpt.db                # SQLite database
+└── tests/
+    ├── unit/
+    ├── integration/
+    └── e2e/
+```
+
+## Dependencies
+
+- **Runtime**: Bun
+- **Database**: SQLite + Drizzle ORM
+- **CLI**: Commander.js + @inquirer/prompts
+- **AI**: OpenAI API (embeddings + chat)
+- **Scraping**: @the-convocation/twitter-scraper (v0.21.0)
+
+## Rate Limiting
+
+Two layers of rate limiting:
+
+1. **Library level**: twitter-scraper's `WaitingRateLimitStrategy` handles Twitter API 429 responses
+2. **Application level**: Custom token bucket with circuit breaker protects account from suspension
+
+The application rate limiter integrates with the library's strategy - when Twitter returns a rate limit, both systems are notified.

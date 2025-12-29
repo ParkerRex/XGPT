@@ -102,7 +102,7 @@ export async function askCommand(
     // Find most similar tweets using cosine similarity
     const similarities = await withSpinner(
       `[search] Finding ${topK} most relevant tweets...`,
-      () => {
+      async () => {
         return embeddings
           .map((tweet) => ({
             ...tweet,
@@ -169,7 +169,9 @@ export async function askCommand(
       );
       if (tweet.user) console.log(`   [user] @${tweet.user}`);
       if (tweet.created_at)
-        console.log(`   [date] ${new Date(tweet.created_at).toLocaleDateString()}`);
+        console.log(
+          `   [date] ${new Date(tweet.created_at).toLocaleDateString()}`,
+        );
       console.log();
     });
 
