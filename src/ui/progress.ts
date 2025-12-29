@@ -183,7 +183,7 @@ export class SingleProgressBar extends ProgressIndicator {
   fail(message?: string): void {
     this.bar.stop();
     if (message) {
-      console.error(`\n❌ ${message}`);
+      console.error(`\n[error] ${message}`);
     }
   }
 }
@@ -273,7 +273,7 @@ export class MultiStepProgress extends ProgressIndicator {
     
     this.multiBar.stop();
     if (message) {
-      console.error(`\n❌ ${message}`);
+      console.error(`\n[error] ${message}`);
     }
   }
 }
@@ -296,30 +296,30 @@ export function createProgressBar(options: ProgressOptions & { type?: 'single' |
  */
 export const ProgressPresets = {
   scraping: (username: string): ProgressOptions => ({
-    title: `🐦 Scraping @${username}`,
+    title: `[scrape] Scraping @${username}`,
     showPercentage: true,
     showETA: true,
     showValue: true,
-    format: '🐦 Scraping |{bar}| {percentage}% | {value}/{total} tweets | Processed: {processed} | Delays: {delays} | ETA: {eta}s'
+    format: '[scrape] Scraping |{bar}| {percentage}% | {value}/{total} tweets | Processed: {processed} | Delays: {delays} | ETA: {eta}s'
   }),
   
   embedding: (model: string): ProgressOptions => ({
-    title: `🧠 Generating embeddings (${model})`,
+    title: `[embed] Generating embeddings (${model})`,
     showPercentage: true,
     showETA: true,
     showValue: true,
-    format: '🧠 Embedding |{bar}| {percentage}% | {value}/{total} | Batch: {batchNumber}/{totalBatches} | ETA: {eta}s'
+    format: '[embed] Embedding |{bar}| {percentage}% | {value}/{total} | Batch: {batchNumber}/{totalBatches} | ETA: {eta}s'
   }),
   
   database: (operation: string): ProgressOptions => ({
-    title: `💾 ${operation}`,
+    title: `[save] ${operation}`,
     showPercentage: true,
     showValue: true,
-    format: '💾 {title} |{bar}| {percentage}% | {value}/{total} records'
+    format: '[save] {title} |{bar}| {percentage}% | {value}/{total} records'
   }),
   
   migration: (): ProgressOptions => ({
-    title: '🔄 Migrating data',
+    title: '[sync] Migrating data',
     showPercentage: true,
     showValue: true,
     steps: ['Reading JSON files', 'Validating data', 'Inserting records', 'Verifying integrity']

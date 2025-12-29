@@ -148,7 +148,7 @@ export class StatusLine {
     }
     
     if (this.metrics.failed !== undefined && this.metrics.failed > 0) {
-      parts.push(`❌ ${this.metrics.failed}`);
+      parts.push(`[error] ${this.metrics.failed}`);
     }
     
     if (this.metrics.skipped !== undefined && this.metrics.skipped > 0) {
@@ -214,7 +214,7 @@ export class StatusDisplay {
     const minutes = Math.floor(elapsed / 60000);
     const seconds = Math.floor((elapsed % 60000) / 1000);
     
-    console.log('\n📊 Operation Summary');
+    console.log('\n[stats] Operation Summary');
     console.log('─'.repeat(40));
     console.log(`⏱️  Total time: ${minutes}m ${seconds}s`);
     

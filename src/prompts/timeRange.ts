@@ -6,7 +6,7 @@ export async function promptTimeRange(defaultValue: SessionConfig['timeRange'] =
   timeRange: SessionConfig['timeRange'];
   customDateRange?: { start: Date; end: Date };
 }> {
-  console.log('\n📅 Step 3: Time Range');
+  console.log('\n[date] Step 3: Time Range');
   console.log('Choose the time range for scraping tweets:\n');
 
   const timeRange = await select({
@@ -70,7 +70,7 @@ export async function promptTimeRange(defaultValue: SessionConfig['timeRange'] =
     customDateRange = { start: startDate, end: endDate };
 
     // Show confirmation
-    console.log(`\n📊 Custom range: ${formatDateRange(startDate, endDate)}`);
+    console.log(`\n[stats] Custom range: ${formatDateRange(startDate, endDate)}`);
 
     const confirmed = await confirm({
       message: 'Is this date range correct?',
@@ -78,7 +78,7 @@ export async function promptTimeRange(defaultValue: SessionConfig['timeRange'] =
     });
 
     if (!confirmed) {
-      console.log('\n🔄 Let\'s try again...');
+      console.log('\n[sync] Let\'s try again...');
       return promptTimeRange(); // Recursive call to retry
     }
   }
@@ -88,7 +88,7 @@ export async function promptTimeRange(defaultValue: SessionConfig['timeRange'] =
 
   // Show selection confirmation
   const selectedOption = TIME_RANGE_OPTIONS.find(opt => opt.value === timeRange);
-  console.log(`\n✅ Selected: ${selectedOption?.name}`);
+  console.log(`\n[ok] Selected: ${selectedOption?.name}`);
 
   if (timeRange !== 'lifetime') {
     console.log(`   Date range: ${formatDateRange(dateRange.start, dateRange.end)}`);

@@ -22,13 +22,12 @@ export async function askCommand(
       question,
       topK = userConfig.query.defaultTopK,
       model = "gpt-4o-mini",
-      vectorFile = "vectors.json", // Legacy parameter, now ignored
     } = options;
 
-    console.log(`🤔 Processing question: "${question}"`);
+    console.log(`[query] Processing question: "${question}"`);
 
     // Check for OpenAI API key (from config or environment)
-    const apiKey = userConfig.api.openaiKey || process.env.OPENAI_KEY;
+    const apiKey = userConfig.api.openaiKey ?? process.env.OPENAI_KEY;
     if (!apiKey) {
       const authError = new AuthenticationError(
         "OpenAI API key is missing or invalid",
@@ -45,7 +44,7 @@ export async function askCommand(
 
     try {
       const dbEmbeddings = await withSpinner(
-        `📖 Loading embeddings from database...`,
+        `[load] Loading embeddings from database...`,
         async () => await embeddingQueries.getEmbeddingsForSearch(),
         { preset: "dots" },
       );
@@ -70,7 +69,7 @@ export async function askCommand(
         vec: JSON.parse(dbEmbed.vector as string),
       }));
 
-      console.log(`📊 Found ${embeddings.length} tweet embeddings`);
+      console.log(`[stats] Found ${embeddings.length} tweet embeddings`);
     } catch (error) {
       return handleCommandError(error, {
         command: "ask",
@@ -82,7 +81,7 @@ export async function askCommand(
 
     // Generate embedding for the question
     const questionEmbedding = await withSpinner(
-      `🧠 Generating embedding for question...`,
+      `[embed] Generating embedding for question...`,
       async () =>
         await openai.embeddings.create({
           model: "text-embedding-3-small",
@@ -102,8 +101,8 @@ export async function askCommand(
 
     // Find most similar tweets using cosine similarity
     const similarities = await withSpinner(
-      `🔍 Finding ${topK} most relevant tweets...`,
-      async () => {
+      `[search] Finding ${topK} most relevant tweets...`,
+      () => {
         return embeddings
           .map((tweet) => ({
             ...tweet,
@@ -125,7 +124,7 @@ export async function askCommand(
 
     // Generate answer using GPT
     const response = await withSpinner(
-      `🤖 Generating answer using ${model}...`,
+      `[ai] Generating answer using ${model}...`,
       async () =>
         await openai.chat.completions.create({
           model,
@@ -157,7 +156,7 @@ export async function askCommand(
 
     // Display results
     console.log("\n" + "=".repeat(60));
-    console.log("🎯 ANSWER:");
+    console.log("[done] ANSWER:");
     console.log("=".repeat(60));
     console.log(answer);
     console.log("\n" + "=".repeat(60));
@@ -168,9 +167,9 @@ export async function askCommand(
       console.log(
         `${index + 1}. [${tweet.similarity.toFixed(3)}] ${tweet.text}`,
       );
-      if (tweet.user) console.log(`   👤 @${tweet.user}`);
+      if (tweet.user) console.log(`   [user] @${tweet.user}`);
       if (tweet.created_at)
-        console.log(`   📅 ${new Date(tweet.created_at).toLocaleDateString()}`);
+        console.log(`   [date] ${new Date(tweet.created_at).toLocaleDateString()}`);
       console.log();
     });
 

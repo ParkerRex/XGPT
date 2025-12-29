@@ -2,7 +2,7 @@ import { select } from '@inquirer/prompts';
 import { CONTENT_TYPE_OPTIONS, type SessionConfig } from '../types/session.js';
 
 export async function promptContentType(defaultValue: SessionConfig['contentType'] = 'tweets'): Promise<SessionConfig['contentType']> {
-  console.log('\n🎯 Step 1: Content Type Selection');
+  console.log('\n[done] Step 1: Content Type Selection');
   console.log('Choose what type of content you want to scrape:\n');
 
   const contentType = await select({
@@ -17,7 +17,7 @@ export async function promptContentType(defaultValue: SessionConfig['contentType
 
   // Show selection confirmation
   const selectedOption = CONTENT_TYPE_OPTIONS.find(opt => opt.value === contentType);
-  console.log(`\n✅ Selected: ${selectedOption?.name}`);
+  console.log(`\n[ok] Selected: ${selectedOption?.name}`);
   console.log(`   ${selectedOption?.description}\n`);
 
   return contentType;

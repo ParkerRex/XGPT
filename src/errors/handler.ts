@@ -254,7 +254,7 @@ export class ErrorHandler {
   private processXGPTError(error: XGPTError): CommandResult {
     // Log error details if verbose logging is enabled
     if (this.verboseLogging) {
-      console.error('\n🔍 Detailed Error Information:');
+      console.error('\n[search] Detailed Error Information:');
       console.error(JSON.stringify(error.toJSON(), null, 2));
     }
 
@@ -313,7 +313,7 @@ export class ErrorHandler {
    * Handle graceful degradation for non-critical errors
    */
   handleWarning(message: string, context?: ErrorContext): void {
-    console.warn(`⚠️  Warning: ${message}`);
+    console.warn(`[warn] Warning: ${message}`);
     
     if (this.verboseLogging && context) {
       console.warn('Context:', JSON.stringify(context, null, 2));

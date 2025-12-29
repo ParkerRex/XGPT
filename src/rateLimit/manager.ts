@@ -38,7 +38,7 @@ export class RateLimitManager {
     if (this.isCircuitBreakerOpen()) {
       const waitTime = this.circuitBreakerOpenUntil - Date.now();
       if (waitTime > 0) {
-        console.log(`🔒 Circuit breaker open. Waiting ${Math.ceil(waitTime / 1000)}s before retry...`);
+        console.log(`[lock] Circuit breaker open. Waiting ${Math.ceil(waitTime / 1000)}s before retry...`);
         await this.sleep(waitTime);
         this.resetCircuitBreaker();
       }
@@ -50,7 +50,7 @@ export class RateLimitManager {
     // If no tokens available, wait for next refill
     if (this.tokens < 1) {
       const waitTime = this.calculateWaitTime();
-      console.log(`⏳ Rate limit: Waiting ${Math.ceil(waitTime / 1000)}s before next request...`);
+      console.log(`[wait] Rate limit: Waiting ${Math.ceil(waitTime / 1000)}s before next request...`);
       await this.sleep(waitTime);
       this.refillTokens();
     }
@@ -72,11 +72,11 @@ export class RateLimitManager {
         this.config.maxBackoffMs
       );
       finalDelay = Math.max(delayWithJitter, backoffDelay);
-      console.log(`⚠️  Applying backoff: ${Math.ceil(finalDelay / 1000)}s (attempt ${this.backoffAttempt + 1})`);
+      console.log(`[warn] Applying backoff: ${Math.ceil(finalDelay / 1000)}s (attempt ${this.backoffAttempt + 1})`);
     }
 
     if (finalDelay > 1000) {
-      console.log(`🐌 Delaying ${Math.ceil(finalDelay / 1000)}s to protect your account...`);
+      console.log(`[slow] Delaying ${Math.ceil(finalDelay / 1000)}s to protect your account...`);
       await this.sleep(finalDelay);
     }
   }
@@ -109,7 +109,7 @@ export class RateLimitManager {
       
       if (isRateLimitError(error)) {
         this.backoffAttempt++;
-        console.log(`❌ Rate limit detected. Consecutive failures: ${this.consecutiveFailures}`);
+        console.log(`[error] Rate limit detected. Consecutive failures: ${this.consecutiveFailures}`);
         
         // Open circuit breaker if too many failures
         if (this.config.enableCircuitBreaker && 
@@ -162,7 +162,7 @@ export class RateLimitManager {
     this.config.profile = profile;
     // Reset tokens to new burst capacity
     this.tokens = Math.min(this.tokens, profile.burstCapacity);
-    console.log(`🔧 Rate limit profile updated to: ${profile.name} (${profile.description})`);
+    console.log(`[config] Rate limit profile updated to: ${profile.name} (${profile.description})`);
   }
 
   /**
@@ -230,14 +230,14 @@ export class RateLimitManager {
 
   private openCircuitBreaker(): void {
     this.circuitBreakerOpenUntil = Date.now() + this.config.circuitBreakerResetMs;
-    console.log(`🚨 Circuit breaker opened due to repeated failures. Will retry in ${Math.ceil(this.config.circuitBreakerResetMs / 60000)} minutes.`);
+    console.log(`[alert] Circuit breaker opened due to repeated failures. Will retry in ${Math.ceil(this.config.circuitBreakerResetMs / 60000)} minutes.`);
   }
 
   private resetCircuitBreaker(): void {
     this.circuitBreakerOpenUntil = 0;
     this.consecutiveFailures = 0;
     this.backoffAttempt = 0;
-    console.log(`✅ Circuit breaker reset. Resuming normal operation.`);
+    console.log(`[ok] Circuit breaker reset. Resuming normal operation.`);
   }
 
   private sleep(ms: number): Promise<void> {

@@ -70,11 +70,11 @@ export class TweetEstimator {
     let riskAssessment: string;
 
     if (tweetCount > recommendedMaxTweets) {
-      warningMessage = `⚠️  Requesting ${tweetCount} tweets exceeds recommended limit of ${recommendedMaxTweets} for ${profile.name} profile. Consider reducing count or using a more aggressive profile.`;
+      warningMessage = `[warn] Requesting ${tweetCount} tweets exceeds recommended limit of ${recommendedMaxTweets} for ${profile.name} profile. Consider reducing count or using a more aggressive profile.`;
     }
 
     if (estimatedHours > 4) {
-      warningMessage = `⚠️  Estimated collection time is ${Math.ceil(estimatedHours)} hours. Consider reducing tweet count or using a more aggressive profile.`;
+      warningMessage = `[warn] Estimated collection time is ${Math.ceil(estimatedHours)} hours. Consider reducing tweet count or using a more aggressive profile.`;
     }
 
     // Risk assessment based on profile and collection size
@@ -170,8 +170,8 @@ export class TweetEstimator {
       timeStr = `${days} days`;
     }
 
-    let output = `📊 Estimated collection time: ${timeStr}\n`;
-    output += `⚡ Rate: ${tweetsPerHour} tweets/hour\n`;
+    let output = `[stats] Estimated collection time: ${timeStr}\n`;
+    output += `[info] Rate: ${tweetsPerHour} tweets/hour\n`;
     output += `${riskAssessment}`;
 
     if (estimate.warningMessage) {
@@ -197,9 +197,9 @@ export class TweetEstimator {
     const alternatives: string[] = [];
 
     if (optimal.feasible) {
-      recommendation = `✅ Use ${optimal.profile.name} profile to collect ${tweetCount} tweets in ${optimal.estimate.estimatedMinutes} minutes`;
+      recommendation = `[ok] Use ${optimal.profile.name} profile to collect ${tweetCount} tweets in ${optimal.estimate.estimatedMinutes} minutes`;
     } else {
-      recommendation = `⚠️  ${tweetCount} tweets cannot be collected within ${maxTimeMinutes} minutes safely`;
+      recommendation = `[warn] ${tweetCount} tweets cannot be collected within ${maxTimeMinutes} minutes safely`;
       
       // Suggest reducing tweet count
       const maxSafeTweets = Math.floor((maxTimeMinutes * optimal.profile.requestsPerMinute));
@@ -213,7 +213,7 @@ export class TweetEstimator {
       const aggressive = RATE_LIMIT_PROFILES.aggressive!;
       const aggressiveEstimate = this.estimateCollectionTime(tweetCount, aggressive);
       if (aggressiveEstimate.estimatedMinutes <= maxTimeMinutes) {
-        alternatives.push(`⚡ Use Aggressive profile (higher risk) to complete in ${aggressiveEstimate.estimatedMinutes} minutes`);
+        alternatives.push(`[info] Use Aggressive profile (higher risk) to complete in ${aggressiveEstimate.estimatedMinutes} minutes`);
       }
     }
 

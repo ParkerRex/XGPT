@@ -39,7 +39,7 @@ export class ConfigManager {
         const fileConfig = JSON.parse(fileContent) as Partial<UserConfig>;
         this.config = this.mergeConfigs(DEFAULT_CONFIG, fileConfig);
       } catch (error) {
-        console.warn(`⚠️  Warning: Could not load config file: ${error}`);
+        console.warn(`[warn] Warning: Could not load config file: ${error}`);
         console.warn('   Using default configuration');
       }
     }

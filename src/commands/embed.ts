@@ -14,14 +14,11 @@ import {
   handleCommandError,
   AuthenticationError,
   DatabaseError,
-  NetworkError,
-  ErrorCategory,
 } from "../errors/index.js";
 import {
   createProgressBar,
   ProgressPresets,
   withSpinner,
-  StatusLine,
 } from "../ui/index.js";
 import { chunkArray } from "../utils/array.js";
 
@@ -35,15 +32,13 @@ export async function embedCommand(
     const {
       model = userConfig.embedding.model,
       batchSize = userConfig.embedding.batchSize,
-      inputFile = "tweets.json", // Legacy parameter, now ignored
-      outputFile = "vectors.json", // Legacy parameter, now ignored
     } = options;
 
-    console.log(`🧠 Starting embedding generation...`);
-    console.log(`📊 Model: ${model}, Batch size: ${batchSize}`);
+    console.log(`[embed] Starting embedding generation...`);
+    console.log(`[stats] Model: ${model}, Batch size: ${batchSize}`);
 
     // Check for OpenAI API key (from config or environment)
-    const apiKey = userConfig.api.openaiKey || process.env.OPENAI_KEY;
+    const apiKey = userConfig.api.openaiKey ?? process.env.OPENAI_KEY;
     if (!apiKey) {
       const authError = new AuthenticationError(
         "OpenAI API key is missing or invalid",
@@ -56,7 +51,7 @@ export async function embedCommand(
     }
 
     // Read tweets from database
-    console.log(`📖 Reading tweets from database...`);
+    console.log(`[load] Reading tweets from database...`);
     let tweets: Tweet[];
 
     try {
@@ -89,7 +84,7 @@ export async function embedCommand(
       };
     }
 
-    console.log(`📊 Found ${tweets.length} tweets to embed`);
+    console.log(`[stats] Found ${tweets.length} tweets to embed`);
 
     const openai = new OpenAI({ apiKey: apiKey });
     const embeddings: TweetWithEmbedding[] = [];
@@ -103,7 +98,7 @@ export async function embedCommand(
     const progressBar = createProgressBar({
       ...ProgressPresets.embedding(model),
       format:
-        "🧠 Embedding |{bar}| {percentage}% | {value}/{total} | Batch: {batchNumber}/{totalBatches} | ETA: {eta}s",
+        "[embed] Embedding |{bar}| {percentage}% | {value}/{total} | Batch: {batchNumber}/{totalBatches} | ETA: {eta}s",
     });
     progressBar.start(tweets.length);
 
@@ -174,16 +169,16 @@ export async function embedCommand(
     // Save embeddings to database
     if (embeddingBatch.length > 0) {
       await withSpinner(
-        `💾 Saving ${embeddingBatch.length} embeddings to database...`,
+        `[save] Saving ${embeddingBatch.length} embeddings to database...`,
         async () => {
           await embeddingQueries.insertEmbeddings(embeddingBatch);
         },
         {
-          successText: `✅ Successfully saved ${embeddingBatch.length} embeddings to database`,
-          failText: `❌ Failed to save embeddings to database`,
+          successText: `[ok] Successfully saved ${embeddingBatch.length} embeddings to database`,
+          failText: `[error] Failed to save embeddings to database`,
         },
       ).catch((error) => {
-        console.error(`❌ Failed to save embeddings to database:`, error);
+        console.error(`[error] Failed to save embeddings to database:`, error);
         const dbError = new DatabaseError(
           "Failed to save embeddings to database",
           {
@@ -197,9 +192,9 @@ export async function embedCommand(
       });
     }
 
-    const message = `✅ Successfully generated embeddings for ${embeddings.length} tweets`;
+    const message = `[ok] Successfully generated embeddings for ${embeddings.length} tweets`;
     console.log(message);
-    console.log(`💾 Saved to SQLite database`);
+    console.log(`[save] Saved to SQLite database`);
 
     return {
       success: true,
@@ -207,7 +202,7 @@ export async function embedCommand(
       data: {
         tweetsEmbedded: embeddings.length,
         model,
-        vectorDimensions: embeddings[0]?.vec.length || 0,
+        vectorDimensions: embeddings[0]?.vec.length ?? 0,
         embeddingsInDatabase: embeddingBatch.length,
       },
     };

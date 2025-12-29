@@ -59,7 +59,7 @@ program
     const result = await interactiveCommand(username);
 
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -82,7 +82,7 @@ program
     });
 
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -105,7 +105,7 @@ program
     });
 
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -128,7 +128,7 @@ program
     });
 
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -143,15 +143,15 @@ program
   .option('--init', 'Initialize/reset database')
   .action(async (options) => {
     if (options.init) {
-      console.log('🔄 Initializing database...');
+      console.log('[sync] Initializing database...');
       await initializeDatabase();
-      console.log('✅ Database initialized successfully');
+      console.log('[ok] Database initialized successfully');
       return;
     }
 
     if (options.health) {
       const isHealthy = checkDatabaseHealth();
-      console.log(`🏥 Database health: ${isHealthy ? '✅ Healthy' : '❌ Unhealthy'}`);
+      console.log(`🏥 Database health: ${isHealthy ? '[ok] Healthy' : '[error] Unhealthy'}`);
       if (!isHealthy) process.exit(1);
       return;
     }
@@ -160,7 +160,7 @@ program
       const dbStats = getDatabaseStats();
       const appStats = await statsQueries.getOverallStats();
 
-      console.log('📊 Database Statistics:');
+      console.log('[stats] Database Statistics:');
       console.log(`   • File size: ${dbStats?.sizeMB} MB`);
       console.log(`   • WAL mode: ${dbStats?.walMode}`);
       console.log(`   • Foreign keys: ${dbStats?.foreignKeysEnabled ? 'enabled' : 'disabled'}`);
@@ -211,7 +211,7 @@ program
   .action(async (options) => {
     await ensureDatabaseReady();
 
-    console.log('⚡ Starting database optimization...');
+    console.log('[info] Starting database optimization...');
 
     await optimizeDatabase({
       enableIndexes: options.indexes,
@@ -223,7 +223,7 @@ program
     });
 
     if (options.metrics) {
-      console.log('\n📊 Performance Metrics:');
+      console.log('\n[stats] Performance Metrics:');
       await getDatabaseMetrics();
 
       console.log('\n🏃 Running Benchmarks:');
@@ -233,7 +233,7 @@ program
       await monitorDatabaseSize();
     }
 
-    console.log('\n✅ Database optimization completed!');
+    console.log('\n[ok] Database optimization completed!');
   });
 
 // Benchmark command
@@ -266,7 +266,7 @@ configCommand
   .action(async () => {
     const result = await listConfigCommand();
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -279,7 +279,7 @@ configCommand
   .action(async (key) => {
     const result = await getConfigCommand(key);
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -293,7 +293,7 @@ configCommand
   .action(async (key, value) => {
     const result = await setConfigCommand(key, value);
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -305,7 +305,7 @@ configCommand
   .action(async () => {
     const result = await resetConfigCommand();
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -317,7 +317,7 @@ configCommand
   .action(async () => {
     const result = await configInfoCommand();
     if (!result.success) {
-      console.error(`❌ ${result.message}`);
+      console.error(`[error] ${result.message}`);
       if (result.error) console.error(`   ${result.error}`);
       process.exit(1);
     }
@@ -338,7 +338,7 @@ async function ensureDatabaseReady() {
       await initializeDatabase();
     }
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
+    console.error('[error] Database initialization failed:', error);
     console.error('Please check your database configuration and try again.');
     process.exit(1);
   }
@@ -364,6 +364,6 @@ async function main() {
 
 // Run the CLI
 main().catch((error) => {
-  console.error('❌ CLI error:', error);
+  console.error('[error] CLI error:', error);
   process.exit(1);
 });

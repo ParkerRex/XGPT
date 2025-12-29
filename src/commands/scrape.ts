@@ -15,27 +15,14 @@ import {
 } from "../database/queries.js";
 import type { NewTweet, NewScrapeSession } from "../database/schema.js";
 import { RateLimitManager } from "../rateLimit/manager.js";
-import {
-  RATE_LIMIT_PROFILES,
-  getRateLimitProfile,
-  isRateLimitError,
-} from "../rateLimit/config.js";
+import { getRateLimitProfile, isRateLimitError } from "../rateLimit/config.js";
 import { TweetEstimator } from "../rateLimit/estimator.js";
 import {
   handleCommandError,
   AuthenticationError,
-  ValidationError,
   RateLimitError,
-  DatabaseError,
-  NetworkError,
-  ErrorCategory,
 } from "../errors/index.js";
-import {
-  createProgressBar,
-  ProgressPresets,
-  withSpinner,
-  StatusLine,
-} from "../ui/index.js";
+import { createProgressBar, ProgressPresets, StatusLine } from "../ui/index.js";
 
 export async function scrapeCommand(
   options: ScrapingOptions,
@@ -51,12 +38,12 @@ export async function scrapeCommand(
   } = options;
 
   try {
-    console.log(`🐦 Starting to scrape tweets from @${username}...`);
+    console.log(`[scrape] Starting to scrape tweets from @${username}...`);
 
     // Create or update user in database
-    console.log(`👤 Setting up user @${username} in database...`);
+    console.log(`[user] Setting up user @${username} in database...`);
     const user = await userQueries.upsertUser(username, username);
-    console.log(`✅ User @${username} ready (ID: ${user.id})`);
+    console.log(`[ok] User @${username} ready (ID: ${user.id})`);
 
     // Create scrape session record
     const sessionData: NewScrapeSession = {
@@ -77,7 +64,7 @@ export async function scrapeCommand(
     };
 
     const session = await sessionQueries.createSession(sessionData);
-    console.log(`📊 Created scrape session (ID: ${session.id})`);
+    console.log(`[stats] Created scrape session (ID: ${session.id})`);
 
     // Set up cookies for authentication
     const cookies = [
@@ -106,10 +93,10 @@ export async function scrapeCommand(
     const rateLimiter = new RateLimitManager({ profile });
 
     console.log(
-      `🛡️  Rate limiting active: ${profile.name} profile (${profile.description})`,
+      `[rate] Rate limiting active: ${profile.name} profile (${profile.description})`,
     );
     console.log(
-      `⚡ Rate: ${profile.requestsPerMinute} requests/min, ${profile.requestsPerHour} requests/hour`,
+      `[info] Rate: ${profile.requestsPerMinute} requests/min, ${profile.requestsPerHour} requests/hour`,
     );
 
     // Show collection time estimate
@@ -130,7 +117,7 @@ export async function scrapeCommand(
           new Error("Rate limit from Twitter API"),
         );
         console.log(
-          `\n⚠️  Twitter API rate limit hit. Using library's built-in wait strategy...`,
+          `\n[warn] Twitter API rate limit hit. Using library's built-in wait strategy...`,
         );
         // Delegate to the library's waiting strategy
         const waitingStrategy = new WaitingRateLimitStrategy();
@@ -149,7 +136,7 @@ export async function scrapeCommand(
     await scraper.setCookies(cookies);
 
     // Show active filters
-    console.log(`📊 Active filters:`);
+    console.log(`[stats] Active filters:`);
     console.log(`   • Replies: ${includeReplies ? "included" : "excluded"}`);
     console.log(`   • Retweets: ${includeRetweets ? "included" : "excluded"}`);
     if (keywords && keywords.length > 0) {
@@ -170,7 +157,6 @@ export async function scrapeCommand(
     let rateLimitDelays = 0;
     const tweets: Tweet[] = [];
     const tweetBatch: NewTweet[] = [];
-    const startTime = Date.now();
 
     // Create progress bar with rate limit awareness
     const progressBar = createProgressBar(ProgressPresets.scraping(username));
@@ -201,7 +187,7 @@ export async function scrapeCommand(
           // Check if we should pause scraping
           if (rateLimiter.shouldPauseScraping()) {
             console.log(
-              "\n⚠️  Too many rate limit errors. Pausing scraping for account safety.",
+              "\n[warn] Too many rate limit errors. Pausing scraping for account safety.",
             );
             break;
           }
@@ -237,7 +223,7 @@ export async function scrapeCommand(
 
         // Apply keyword filter
         if (keywords && keywords.length > 0) {
-          if (!matchesKeywords(tweet.text || "", keywords)) {
+          if (!matchesKeywords(tweet.text ?? "", keywords)) {
             keywordFilteredCount++;
             continue;
           }
@@ -264,12 +250,12 @@ export async function scrapeCommand(
           text: (tweet.text ?? "").replace(/\s+/g, " ").trim(),
           userId: user.id,
           username: username,
-          createdAt: tweet.timeParsed || new Date(),
-          isRetweet: tweet.isRetweet || false,
-          isReply: tweet.isReply || false,
-          likes: tweet.likes || 0,
-          retweets: tweet.retweets || 0,
-          replies: tweet.replies || 0,
+          createdAt: tweet.timeParsed ?? new Date(),
+          isRetweet: tweet.isRetweet ?? false,
+          isReply: tweet.isReply ?? false,
+          likes: tweet.likes ?? 0,
+          retweets: tweet.retweets ?? 0,
+          replies: tweet.replies ?? 0,
           metadata: JSON.stringify({
             isRetweet: tweet.isRetweet,
             isReply: tweet.isReply,
@@ -304,7 +290,7 @@ export async function scrapeCommand(
       // Stop progress bar
       progressBar.stop();
       console.log(
-        `🎯 Scraping completed! Collected ${tweets.length} tweets from ${scrapedCount} processed.`,
+        `[done] Scraping completed! Collected ${tweets.length} tweets from ${scrapedCount} processed.`,
       );
 
       // Save tweets to database (handle duplicates)
@@ -317,7 +303,7 @@ export async function scrapeCommand(
         for (let i = 0; i < tweetBatch.length; i++) {
           const tweet = tweetBatch[i];
 
-          saveStatus.update(`💾 Saving tweets to database`, {
+          saveStatus.update(`[save] Saving tweets to database`, {
             total: tweetBatch.length,
             completed: i,
             skipped: duplicateCount,
@@ -342,22 +328,22 @@ export async function scrapeCommand(
             ) {
               duplicateCount++;
             } else {
-              console.error(`❌ Failed to save tweet ${tweet!.id}:`, error);
+              console.error(`[error] Failed to save tweet ${tweet!.id}:`, error);
             }
           }
         }
 
         saveStatus.done();
         console.log(
-          `✅ Successfully saved ${savedCount} new tweets to database`,
+          `[ok] Successfully saved ${savedCount} new tweets to database`,
         );
         if (duplicateCount > 0) {
-          console.log(`ℹ️  Skipped ${duplicateCount} duplicate tweets`);
+          console.log(`[info] Skipped ${duplicateCount} duplicate tweets`);
         }
       }
     } catch (scrapingError) {
       // Handle scraping loop errors with detailed error categorization
-      console.error("❌ Error during scraping loop:", scrapingError);
+      console.error("[error] Error during scraping loop:", scrapingError);
       rateLimiter.recordRequest(false, undefined, scrapingError);
 
       // Check if it's a rate limit error and handle appropriately
@@ -389,10 +375,10 @@ export async function scrapeCommand(
 
     const totalFiltered =
       filteredCount + keywordFilteredCount + dateFilteredCount;
-    const message = `✅ Successfully scraped ${tweets.length} tweets from @${username}`;
+    const message = `[ok] Successfully scraped ${tweets.length} tweets from @${username}`;
     console.log(message);
-    console.log(`💾 Saved to SQLite database`);
-    console.log(`📊 Statistics:`);
+    console.log(`[save] Saved to SQLite database`);
+    console.log(`[stats] Statistics:`);
     console.log(`   • Total processed: ${scrapedCount}`);
     console.log(`   • Content filtered: ${filteredCount}`);
     if (keywordFilteredCount > 0) {
@@ -431,7 +417,7 @@ export async function scrapeCommand(
         });
       }
     } catch (sessionError) {
-      console.error("❌ Failed to update session status:", sessionError);
+      console.error("[error] Failed to update session status:", sessionError);
     }
 
     // Use comprehensive error handling

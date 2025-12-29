@@ -101,11 +101,11 @@ export class XGPTError extends Error {
    * Convert to a user-friendly display format
    */
   toDisplayFormat(): string {
-    let output = `❌ ${this.title}\n`;
+    let output = `[error] ${this.title}\n`;
     output += `   ${this.message}\n`;
 
     if (this.recoveryActions && this.recoveryActions.length > 0) {
-      output += '\n💡 Suggested actions:\n';
+      output += '\n[tip] Suggested actions:\n';
       this.recoveryActions.forEach((action, index) => {
         output += `   ${index + 1}. ${action.description}\n`;
         if (action.command) {

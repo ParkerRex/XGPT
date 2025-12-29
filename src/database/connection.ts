@@ -27,17 +27,17 @@ export const db = drizzle(sqlite, { schema });
 export const rawDb = sqlite;
 
 // Database initialization function
-export async function initializeDatabase() {
+export function initializeDatabase() {
   try {
     console.log("🗃️  Initializing database...");
-    
+
     // Run migrations
-    await migrate(db, { migrationsFolder: "./src/database/migrations" });
-    
-    console.log("✅ Database initialized successfully");
+    migrate(db, { migrationsFolder: "./src/database/migrations" });
+
+    console.log("[ok] Database initialized successfully");
     return true;
   } catch (error) {
-    console.error("❌ Database initialization failed:", error);
+    console.error("[error] Database initialization failed:", error);
     throw error;
   }
 }
@@ -46,10 +46,12 @@ export async function initializeDatabase() {
 export function checkDatabaseHealth(): boolean {
   try {
     // Simple query to check if database is accessible
-    const result = sqlite.query("SELECT 1 as health").get() as { health: number } | null;
+    const result = sqlite.query("SELECT 1 as health").get() as {
+      health: number;
+    } | null;
     return result?.health === 1;
   } catch (error) {
-    console.error("❌ Database health check failed:", error);
+    console.error("[error] Database health check failed:", error);
     return false;
   }
 }
@@ -58,9 +60,9 @@ export function checkDatabaseHealth(): boolean {
 export function closeDatabase() {
   try {
     sqlite.close();
-    console.log("🔒 Database connection closed");
+    console.log("[lock] Database connection closed");
   } catch (error) {
-    console.error("❌ Error closing database:", error);
+    console.error("[error] Error closing database:", error);
   }
 }
 
@@ -68,22 +70,32 @@ export function closeDatabase() {
 export function getDatabaseStats() {
   try {
     const stats = {
-      size: sqlite.query("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").get() as { size: number },
-      tables: sqlite.query("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[],
-      walMode: sqlite.query("PRAGMA journal_mode").get() as { journal_mode: string },
-      foreignKeys: sqlite.query("PRAGMA foreign_keys").get() as { foreign_keys: number }
+      size: sqlite
+        .query(
+          "SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()",
+        )
+        .get() as { size: number },
+      tables: sqlite
+        .query("SELECT name FROM sqlite_master WHERE type='table'")
+        .all() as { name: string }[],
+      walMode: sqlite.query("PRAGMA journal_mode").get() as {
+        journal_mode: string;
+      },
+      foreignKeys: sqlite.query("PRAGMA foreign_keys").get() as {
+        foreign_keys: number;
+      },
     };
-    
+
     return {
       sizeBytes: stats.size.size,
       sizeMB: (stats.size.size / 1024 / 1024).toFixed(2),
       tableCount: stats.tables.length,
-      tables: stats.tables.map(t => t.name),
+      tables: stats.tables.map((t) => t.name),
       walMode: stats.walMode.journal_mode,
-      foreignKeysEnabled: stats.foreignKeys.foreign_keys === 1
+      foreignKeysEnabled: stats.foreignKeys.foreign_keys === 1,
     };
   } catch (error) {
-    console.error("❌ Error getting database stats:", error);
+    console.error("[error] Error getting database stats:", error);
     return null;
   }
 }

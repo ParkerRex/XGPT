@@ -18,7 +18,7 @@ export async function promptSearchScope(defaultKeywords: string[] = []): Promise
   searchScope: SessionConfig['searchScope'];
   keywords?: string[];
 }> {
-  console.log('\n🔍 Step 2: Search Scope');
+  console.log('\n[search] Step 2: Search Scope');
   console.log('Choose whether to scrape all posts or filter by keywords:\n');
 
   // Determine default scope based on whether default keywords exist
@@ -41,7 +41,7 @@ export async function promptSearchScope(defaultKeywords: string[] = []): Promise
     console.log('Enter keywords to filter posts. Posts must contain at least one keyword.\n');
 
     // Show examples
-    console.log('💡 Examples:');
+    console.log('[tip] Examples:');
     console.log('   • AI, machine learning, chatgpt');
     console.log('   • typescript, javascript, react');
     console.log('   • startup, entrepreneurship, business\n');
@@ -64,7 +64,7 @@ export async function promptSearchScope(defaultKeywords: string[] = []): Promise
     keywords = parseKeywords(keywordInput);
 
     // Show parsed keywords for confirmation
-    console.log('\n📋 Parsed keywords:');
+    console.log('\n[list] Parsed keywords:');
     keywords.forEach((keyword, index) => {
       console.log(`   ${index + 1}. "${keyword}"`);
     });
@@ -75,14 +75,14 @@ export async function promptSearchScope(defaultKeywords: string[] = []): Promise
     });
 
     if (!confirmed) {
-      console.log('\n🔄 Let\'s try again...');
+      console.log('\n[sync] Let\'s try again...');
       return promptSearchScope(); // Recursive call to retry
     }
   }
 
   // Show selection confirmation
   const selectedOption = SEARCH_SCOPE_OPTIONS.find(opt => opt.value === searchScope);
-  console.log(`\n✅ Selected: ${selectedOption?.name}`);
+  console.log(`\n[ok] Selected: ${selectedOption?.name}`);
   if (keywords) {
     console.log(`   Keywords: ${keywords.join(', ')}`);
   }

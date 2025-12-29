@@ -43,8 +43,8 @@ const DEFAULT_CONFIG: OptimizationConfig = {
 export async function optimizeDatabase(config: Partial<OptimizationConfig> = {}): Promise<void> {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
-  console.log("🚀 Starting database optimization...");
-  console.log(`📊 Configuration:`);
+  console.log("[start] Starting database optimization...");
+  console.log(`[stats] Configuration:`);
   console.log(`   • Enable indexes: ${finalConfig.enableIndexes}`);
   console.log(`   • Enable vacuum: ${finalConfig.enableVacuum}`);
   console.log(`   • Enable analyze: ${finalConfig.enableAnalyze}`);
@@ -73,10 +73,10 @@ export async function optimizeDatabase(config: Partial<OptimizationConfig> = {})
       await runDatabaseAnalyze();
     }
 
-    console.log("✅ Database optimization completed successfully!");
+    console.log("[ok] Database optimization completed successfully!");
 
   } catch (error) {
-    console.error("❌ Database optimization failed:", error);
+    console.error("[error] Database optimization failed:", error);
     throw error;
   }
 }
@@ -85,7 +85,7 @@ export async function optimizeDatabase(config: Partial<OptimizationConfig> = {})
  * Create performance indexes for faster queries
  */
 async function createPerformanceIndexes(): Promise<void> {
-  console.log("📊 Creating performance indexes...");
+  console.log("[stats] Creating performance indexes...");
 
   const indexes = [
     // Tweet indexes for common query patterns
@@ -197,15 +197,15 @@ async function createPerformanceIndexes(): Promise<void> {
       const createIndexSQL = `CREATE INDEX ${index.name} ON ${index.table} (${columnList})`;
 
       rawDb.exec(createIndexSQL);
-      console.log(`   ✅ Created index ${index.name} on ${index.table}(${columnList}) - ${index.description}`);
+      console.log(`   [ok] Created index ${index.name} on ${index.table}(${columnList}) - ${index.description}`);
       createdCount++;
 
     } catch (error) {
-      console.warn(`   ⚠️  Failed to create index ${index.name}: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.warn(`   [warn] Failed to create index ${index.name}: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
-  console.log(`✅ Index creation completed: ${createdCount} created, ${skippedCount} skipped\n`);
+  console.log(`[ok] Index creation completed: ${createdCount} created, ${skippedCount} skipped\n`);
 }
 
 /**
@@ -237,14 +237,14 @@ async function applyPragmaOptimizations(): Promise<void> {
         : `PRAGMA ${pragma.name}`;
 
       rawDb.exec(pragmaSQL);
-      console.log(`   ✅ Applied PRAGMA ${pragma.name} - ${pragma.description}`);
+      console.log(`   [ok] Applied PRAGMA ${pragma.name} - ${pragma.description}`);
 
     } catch (error) {
-      console.warn(`   ⚠️  Failed to apply PRAGMA ${pragma.name}: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.warn(`   [warn] Failed to apply PRAGMA ${pragma.name}: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
-  console.log("✅ Pragma optimizations applied\n");
+  console.log("[ok] Pragma optimizations applied\n");
 }
 
 /**
@@ -258,10 +258,10 @@ async function runDatabaseVacuum(): Promise<void> {
     rawDb.exec("VACUUM");
     const duration = Date.now() - startTime;
 
-    console.log(`✅ Database vacuum completed in ${duration}ms\n`);
+    console.log(`[ok] Database vacuum completed in ${duration}ms\n`);
 
   } catch (error) {
-    console.warn(`⚠️  Database vacuum failed: ${error instanceof Error ? error.message : "Unknown error"}\n`);
+    console.warn(`[warn] Database vacuum failed: ${error instanceof Error ? error.message : "Unknown error"}\n`);
   }
 }
 
@@ -276,10 +276,10 @@ async function runDatabaseAnalyze(): Promise<void> {
     rawDb.exec("ANALYZE");
     const duration = Date.now() - startTime;
 
-    console.log(`✅ Database analyze completed in ${duration}ms\n`);
+    console.log(`[ok] Database analyze completed in ${duration}ms\n`);
 
   } catch (error) {
-    console.warn(`⚠️  Database analyze failed: ${error instanceof Error ? error.message : "Unknown error"}\n`);
+    console.warn(`[warn] Database analyze failed: ${error instanceof Error ? error.message : "Unknown error"}\n`);
   }
 }
 
@@ -287,7 +287,7 @@ async function runDatabaseAnalyze(): Promise<void> {
  * Get database performance metrics
  */
 export async function getDatabaseMetrics(): Promise<PerformanceMetrics> {
-  console.log("📊 Collecting database performance metrics...");
+  console.log("[stats] Collecting database performance metrics...");
 
   try {
     // Get basic database stats
@@ -320,7 +320,7 @@ export async function getDatabaseMetrics(): Promise<PerformanceMetrics> {
       cacheHitRatio: 0 // Would need detailed cache monitoring
     };
 
-    console.log("📊 Performance Metrics:");
+    console.log("[stats] Performance Metrics:");
     console.log(`   • Database size: ${dbSize.toFixed(2)} MB`);
     console.log(`   • Total records: ${stats.users + stats.tweets + stats.embeddings + stats.sessions}`);
     console.log(`   • Indexes: ${indexStats.length}`);
@@ -329,7 +329,7 @@ export async function getDatabaseMetrics(): Promise<PerformanceMetrics> {
     return metrics;
 
   } catch (error) {
-    console.error("❌ Failed to collect performance metrics:", error);
+    console.error("[error] Failed to collect performance metrics:", error);
     throw error;
   }
 }
@@ -406,7 +406,7 @@ export async function runPerformanceBenchmarks(): Promise<{
     };
 
   } catch (error) {
-    console.error("❌ Performance benchmarks failed:", error);
+    console.error("[error] Performance benchmarks failed:", error);
     throw error;
   }
 }
@@ -462,7 +462,7 @@ export async function monitorDatabaseSize(): Promise<{
     console.log(`📏 Database Size: ${sizeMB.toFixed(2)} MB`);
     console.log(`🧹 Needs Cleanup: ${needsCleanup ? 'Yes' : 'No'}`);
     if (recommendations.length > 0) {
-      console.log("💡 Recommendations:");
+      console.log("[tip] Recommendations:");
       recommendations.forEach(rec => console.log(`   • ${rec}`));
     }
 
@@ -473,7 +473,7 @@ export async function monitorDatabaseSize(): Promise<{
     };
 
   } catch (error) {
-    console.error("❌ Database size monitoring failed:", error);
+    console.error("[error] Database size monitoring failed:", error);
     throw error;
   }
 }
