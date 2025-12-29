@@ -9,7 +9,11 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(gh issue list:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(bun add:*)",
+      "WebFetch(domain:the-convocation.github.io)"
     ]
   },
   "enableAllProjectMcpServers": false
