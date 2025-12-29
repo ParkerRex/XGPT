@@ -1,12 +1,25 @@
-import { Scraper } from "@the-convocation/twitter-scraper";
+import {
+  Scraper,
+  WaitingRateLimitStrategy,
+  type RateLimitStrategy,
+  type RateLimitEvent,
+} from "@the-convocation/twitter-scraper";
 import "dotenv/config";
 import type { ScrapingOptions, Tweet, CommandResult } from "../types/common.js";
 import { matchesKeywords } from "../prompts/searchScope.js";
 import { isWithinDateRange } from "../utils/dateUtils.js";
-import { userQueries, tweetQueries, sessionQueries } from "../database/queries.js";
+import {
+  userQueries,
+  tweetQueries,
+  sessionQueries,
+} from "../database/queries.js";
 import type { NewTweet, NewScrapeSession } from "../database/schema.js";
 import { RateLimitManager } from "../rateLimit/manager.js";
-import { RATE_LIMIT_PROFILES, getRateLimitProfile, isRateLimitError } from "../rateLimit/config.js";
+import {
+  RATE_LIMIT_PROFILES,
+  getRateLimitProfile,
+  isRateLimitError,
+} from "../rateLimit/config.js";
 import { TweetEstimator } from "../rateLimit/estimator.js";
 import {
   handleCommandError,
@@ -15,16 +28,18 @@ import {
   RateLimitError,
   DatabaseError,
   NetworkError,
-  ErrorCategory
+  ErrorCategory,
 } from "../errors/index.js";
 import {
   createProgressBar,
   ProgressPresets,
   withSpinner,
-  StatusLine
+  StatusLine,
 } from "../ui/index.js";
 
-export async function scrapeCommand(options: ScrapingOptions): Promise<CommandResult> {
+export async function scrapeCommand(
+  options: ScrapingOptions,
+): Promise<CommandResult> {
   const {
     username,
     includeReplies = false,
@@ -32,11 +47,10 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
     maxTweets = 10000,
     keywords,
     dateRange,
-    rateLimitProfile = 'conservative'
+    rateLimitProfile = "conservative",
   } = options;
 
   try {
-
     console.log(`🐦 Starting to scrape tweets from @${username}...`);
 
     // Create or update user in database
@@ -48,13 +62,18 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
     const sessionData: NewScrapeSession = {
       userId: user.id,
       username: username,
-      contentType: includeReplies && includeRetweets ? 'both' : includeReplies ? 'replies' : 'tweets',
-      searchScope: keywords && keywords.length > 0 ? 'keywords' : 'all',
+      contentType:
+        includeReplies && includeRetweets
+          ? "both"
+          : includeReplies
+            ? "replies"
+            : "tweets",
+      searchScope: keywords && keywords.length > 0 ? "keywords" : "all",
       keywords: keywords ? JSON.stringify(keywords) : null,
-      timeRange: dateRange ? 'custom' : 'lifetime',
+      timeRange: dateRange ? "custom" : "lifetime",
       customDateRange: dateRange ? JSON.stringify(dateRange) : null,
       maxTweets: maxTweets,
-      status: 'running'
+      status: "running",
     };
 
     const session = await sessionQueries.createSession(sessionData);
@@ -63,21 +82,21 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
     // Set up cookies for authentication
     const cookies = [
       `auth_token=${process.env.AUTH_TOKEN}; Path=/; Domain=.x.com; Secure; HttpOnly`,
-      `ct0=${process.env.CT0}; Path=/; Domain=.x.com; Secure`
+      `ct0=${process.env.CT0}; Path=/; Domain=.x.com; Secure`,
     ];
 
     if (!process.env.AUTH_TOKEN || !process.env.CT0) {
-      await sessionQueries.updateSessionStatus(session.id, 'failed', {
-        errorMessage: 'Missing authentication tokens'
+      await sessionQueries.updateSessionStatus(session.id, "failed", {
+        errorMessage: "Missing authentication tokens",
       });
 
       const authError = new AuthenticationError(
-        'Twitter authentication tokens are missing or invalid',
+        "Twitter authentication tokens are missing or invalid",
         {
-          command: 'scrape',
+          command: "scrape",
           username,
-          operation: 'authentication_check'
-        }
+          operation: "authentication_check",
+        },
       );
       return handleCommandError(authError);
     }
@@ -86,8 +105,12 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
     const profile = getRateLimitProfile(rateLimitProfile);
     const rateLimiter = new RateLimitManager({ profile });
 
-    console.log(`🛡️  Rate limiting active: ${profile.name} profile (${profile.description})`);
-    console.log(`⚡ Rate: ${profile.requestsPerMinute} requests/min, ${profile.requestsPerHour} requests/hour`);
+    console.log(
+      `🛡️  Rate limiting active: ${profile.name} profile (${profile.description})`,
+    );
+    console.log(
+      `⚡ Rate: ${profile.requestsPerMinute} requests/min, ${profile.requestsPerHour} requests/hour`,
+    );
 
     // Show collection time estimate
     const estimate = TweetEstimator.estimateCollectionTime(maxTweets, profile);
@@ -98,18 +121,44 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
     }
     console.log();
 
-    const scraper = new Scraper();
+    // Create a custom rate limit strategy that integrates with our rate limiter
+    const customRateLimitStrategy: RateLimitStrategy = {
+      async onRateLimit(event: RateLimitEvent): Promise<void> {
+        rateLimiter.recordRequest(
+          false,
+          event.response.status,
+          new Error("Rate limit from Twitter API"),
+        );
+        console.log(
+          `\n⚠️  Twitter API rate limit hit. Using library's built-in wait strategy...`,
+        );
+        // Delegate to the library's waiting strategy
+        const waitingStrategy = new WaitingRateLimitStrategy();
+        await waitingStrategy.onRateLimit(event);
+      },
+    };
+
+    // Initialize scraper with library's rate limit handling and experimental features
+    const scraper = new Scraper({
+      rateLimitStrategy: customRateLimitStrategy,
+      experimental: {
+        xClientTransactionId: true, // May help avoid detection
+        xpff: true, // May help avoid detection
+      },
+    });
     await scraper.setCookies(cookies);
 
     // Show active filters
     console.log(`📊 Active filters:`);
-    console.log(`   • Replies: ${includeReplies ? 'included' : 'excluded'}`);
-    console.log(`   • Retweets: ${includeRetweets ? 'included' : 'excluded'}`);
+    console.log(`   • Replies: ${includeReplies ? "included" : "excluded"}`);
+    console.log(`   • Retweets: ${includeRetweets ? "included" : "excluded"}`);
     if (keywords && keywords.length > 0) {
-      console.log(`   • Keywords: ${keywords.join(', ')}`);
+      console.log(`   • Keywords: ${keywords.join(", ")}`);
     }
     if (dateRange) {
-      console.log(`   • Date range: ${dateRange.start.toLocaleDateString()} to ${dateRange.end.toLocaleDateString()}`);
+      console.log(
+        `   • Date range: ${dateRange.start.toLocaleDateString()} to ${dateRange.end.toLocaleDateString()}`,
+      );
     }
     console.log();
 
@@ -128,7 +177,13 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
     progressBar.start(maxTweets);
 
     try {
-      for await (const tweet of scraper.getTweets(username)) {
+      // Use library's getTweetsAndReplies() when replies are requested
+      // This is more efficient than filtering manually
+      const tweetIterator = includeReplies
+        ? scraper.getTweetsAndReplies(username, maxTweets)
+        : scraper.getTweets(username, maxTweets);
+
+      for await (const tweet of tweetIterator) {
         // Apply rate limiting before processing each tweet
         try {
           await rateLimiter.waitForPermission();
@@ -140,12 +195,14 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
           // Update progress bar to show delay
           progressBar.update(tweets.length, {
             processed: scrapedCount,
-            delays: rateLimitDelays
+            delays: rateLimitDelays,
           });
 
           // Check if we should pause scraping
           if (rateLimiter.shouldPauseScraping()) {
-            console.log('\n⚠️  Too many rate limit errors. Pausing scraping for account safety.');
+            console.log(
+              "\n⚠️  Too many rate limit errors. Pausing scraping for account safety.",
+            );
             break;
           }
 
@@ -155,12 +212,14 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
 
         scrapedCount++;
 
-        // Apply content type filters
+        // Apply content type filters - retweets still need filtering
         if (!includeRetweets && tweet.isRetweet) {
           filteredCount++;
           continue;
         }
 
+        // Note: Reply filtering is now handled by the library method choice above
+        // We only need to filter replies if getTweets() somehow returns them
         if (!includeReplies && tweet.isReply) {
           filteredCount++;
           continue;
@@ -168,7 +227,9 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
 
         // Apply date range filter
         if (dateRange && tweet.timeParsed) {
-          if (!isWithinDateRange(tweet.timeParsed, dateRange.start, dateRange.end)) {
+          if (
+            !isWithinDateRange(tweet.timeParsed, dateRange.start, dateRange.end)
+          ) {
             dateFilteredCount++;
             continue;
           }
@@ -176,7 +237,7 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
 
         // Apply keyword filter
         if (keywords && keywords.length > 0) {
-          if (!matchesKeywords(tweet.text || '', keywords)) {
+          if (!matchesKeywords(tweet.text || "", keywords)) {
             keywordFilteredCount++;
             continue;
           }
@@ -193,8 +254,8 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
             isReply: tweet.isReply,
             likes: tweet.likes,
             retweets: tweet.retweets,
-            replies: tweet.replies
-          }
+            replies: tweet.replies,
+          },
         };
 
         // Prepare tweet for database insertion
@@ -214,8 +275,8 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
             isReply: tweet.isReply,
             likes: tweet.likes,
             retweets: tweet.retweets,
-            replies: tweet.replies
-          })
+            replies: tweet.replies,
+          }),
         };
 
         tweets.push(processedTweet);
@@ -226,7 +287,7 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
           processed: scrapedCount,
           delays: rateLimitDelays,
           errors: 0,
-          skipped: filteredCount + keywordFilteredCount + dateFilteredCount
+          skipped: filteredCount + keywordFilteredCount + dateFilteredCount,
         });
 
         if (tweets.length >= maxTweets) {
@@ -234,7 +295,7 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
             processed: scrapedCount,
             delays: rateLimitDelays,
             errors: 0,
-            skipped: filteredCount + keywordFilteredCount + dateFilteredCount
+            skipped: filteredCount + keywordFilteredCount + dateFilteredCount,
           });
           break;
         }
@@ -242,7 +303,9 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
 
       // Stop progress bar
       progressBar.stop();
-      console.log(`🎯 Scraping completed! Collected ${tweets.length} tweets from ${scrapedCount} processed.`);
+      console.log(
+        `🎯 Scraping completed! Collected ${tweets.length} tweets from ${scrapedCount} processed.`,
+      );
 
       // Save tweets to database (handle duplicates)
       if (tweetBatch.length > 0) {
@@ -257,12 +320,12 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
           saveStatus.update(`💾 Saving tweets to database`, {
             total: tweetBatch.length,
             completed: i,
-            skipped: duplicateCount
+            skipped: duplicateCount,
           });
 
           try {
             // Check if tweet already exists
-            const existingTweet = await tweetQueries.tweetExists(tweet!.id!);
+            const existingTweet = await tweetQueries.tweetExists(tweet!.id);
             if (existingTweet) {
               duplicateCount++;
               continue;
@@ -273,7 +336,10 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
             savedCount++;
           } catch (error) {
             // If it's a duplicate constraint error, count as duplicate
-            if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
+            if (
+              error instanceof Error &&
+              error.message.includes("UNIQUE constraint")
+            ) {
               duplicateCount++;
             } else {
               console.error(`❌ Failed to save tweet ${tweet!.id}:`, error);
@@ -282,7 +348,9 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
         }
 
         saveStatus.done();
-        console.log(`✅ Successfully saved ${savedCount} new tweets to database`);
+        console.log(
+          `✅ Successfully saved ${savedCount} new tweets to database`,
+        );
         if (duplicateCount > 0) {
           console.log(`ℹ️  Skipped ${duplicateCount} duplicate tweets`);
         }
@@ -295,13 +363,13 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
       // Check if it's a rate limit error and handle appropriately
       if (isRateLimitError(scrapingError)) {
         const rateLimitError = new RateLimitError(
-          'Rate limit exceeded during tweet scraping',
+          "Rate limit exceeded during tweet scraping",
           {
-            command: 'scrape',
+            command: "scrape",
             username,
-            operation: 'tweet_iteration',
-            metadata: { scrapedCount, tweetsCollected: tweets.length }
-          }
+            operation: "tweet_iteration",
+            metadata: { scrapedCount, tweetsCollected: tweets.length },
+          },
         );
         throw rateLimitError;
       }
@@ -311,15 +379,16 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
     }
 
     // Update session with final results
-    await sessionQueries.updateSessionStatus(session.id, 'completed', {
+    await sessionQueries.updateSessionStatus(session.id, "completed", {
       tweetsCollected: tweets.length,
       totalProcessed: scrapedCount,
       contentFiltered: filteredCount,
       keywordFiltered: keywordFilteredCount,
-      dateFiltered: dateFilteredCount
+      dateFiltered: dateFilteredCount,
     });
 
-    const totalFiltered = filteredCount + keywordFilteredCount + dateFilteredCount;
+    const totalFiltered =
+      filteredCount + keywordFilteredCount + dateFilteredCount;
     const message = `✅ Successfully scraped ${tweets.length} tweets from @${username}`;
     console.log(message);
     console.log(`💾 Saved to SQLite database`);
@@ -346,19 +415,19 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
         dateFiltered: dateFilteredCount,
         totalFiltered,
         sessionId: session.id,
-        userId: user.id
-      }
+        userId: user.id,
+      },
     };
-
   } catch (error) {
     // Update session status if session was created
     try {
       const sessions = await sessionQueries.getSessionsByUser(username);
-      const runningSession = sessions.find(s => s.status === 'running');
+      const runningSession = sessions.find((s) => s.status === "running");
       if (runningSession) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-        await sessionQueries.updateSessionStatus(runningSession.id, 'failed', {
-          errorMessage: errorMessage
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error occurred";
+        await sessionQueries.updateSessionStatus(runningSession.id, "failed", {
+          errorMessage: errorMessage,
         });
       }
     } catch (sessionError) {
@@ -367,9 +436,9 @@ export async function scrapeCommand(options: ScrapingOptions): Promise<CommandRe
 
     // Use comprehensive error handling
     return handleCommandError(error, {
-      command: 'scrape',
+      command: "scrape",
       username,
-      operation: 'tweet_scraping'
+      operation: "tweet_scraping",
     });
   }
 }

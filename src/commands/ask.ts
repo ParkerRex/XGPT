@@ -1,34 +1,19 @@
 import OpenAI from "openai";
 import "dotenv/config";
-import type { TweetWithEmbedding, QueryOptions, CommandResult } from "../types/common.js";
+import type {
+  TweetWithEmbedding,
+  QueryOptions,
+  CommandResult,
+} from "../types/common.js";
 import { embeddingQueries } from "../database/queries.js";
 import { loadConfig } from "../config/manager.js";
-import { 
-  handleCommandError, 
-  AuthenticationError, 
-  DatabaseError,
-  ValidationError,
-  NetworkError 
-} from "../errors/index.js";
-import { withSpinner, SpinnerPresets } from "../ui/index.js";
+import { handleCommandError, AuthenticationError } from "../errors/index.js";
+import { withSpinner } from "../ui/index.js";
+import { cosineSimilarity } from "../utils/math.js";
 
-function cosine(a: number[], b: number[]): number {
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-
-  for (let i = 0; i < a.length; i++) {
-    const aVal = a[i] ?? 0;
-    const bVal = b[i] ?? 0;
-    dot += aVal * bVal;
-    normA += aVal * aVal;
-    normB += bVal * bVal;
-  }
-
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-export async function askCommand(options: QueryOptions): Promise<CommandResult> {
+export async function askCommand(
+  options: QueryOptions,
+): Promise<CommandResult> {
   try {
     // Load user configuration for defaults
     const userConfig = await loadConfig();
@@ -37,7 +22,7 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
       question,
       topK = userConfig.query.defaultTopK,
       model = "gpt-4o-mini",
-      vectorFile = "vectors.json" // Legacy parameter, now ignored
+      vectorFile = "vectors.json", // Legacy parameter, now ignored
     } = options;
 
     console.log(`🤔 Processing question: "${question}"`);
@@ -46,11 +31,11 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
     const apiKey = userConfig.api.openaiKey || process.env.OPENAI_KEY;
     if (!apiKey) {
       const authError = new AuthenticationError(
-        'OpenAI API key is missing or invalid',
-        { 
-          command: 'ask',
-          operation: 'api_key_check'
-        }
+        "OpenAI API key is missing or invalid",
+        {
+          command: "ask",
+          operation: "api_key_check",
+        },
       );
       return handleCommandError(authError);
     }
@@ -62,33 +47,34 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
       const dbEmbeddings = await withSpinner(
         `📖 Loading embeddings from database...`,
         async () => await embeddingQueries.getEmbeddingsForSearch(),
-        { preset: 'dots' }
+        { preset: "dots" },
       );
 
       if (dbEmbeddings.length === 0) {
         return {
           success: false,
           message: "No embeddings found in database",
-          error: "Please generate embeddings first using: xgpt embed"
+          error: "Please generate embeddings first using: xgpt embed",
         };
       }
 
       // Convert database embeddings to TweetWithEmbedding format
-      embeddings = dbEmbeddings.map(dbEmbed => ({
+      embeddings = dbEmbeddings.map((dbEmbed) => ({
         id: dbEmbed.tweetId,
         text: dbEmbed.tweetText,
         user: dbEmbed.tweetUsername,
         created_at: dbEmbed.tweetCreatedAt?.toISOString(),
-        metadata: dbEmbed.tweetMetadata ? JSON.parse(dbEmbed.tweetMetadata as string) : undefined,
-        vec: JSON.parse(dbEmbed.vector as string)
+        metadata: dbEmbed.tweetMetadata
+          ? JSON.parse(dbEmbed.tweetMetadata as string)
+          : undefined,
+        vec: JSON.parse(dbEmbed.vector as string),
       }));
 
       console.log(`📊 Found ${embeddings.length} tweet embeddings`);
-
     } catch (error) {
       return handleCommandError(error, {
-        command: 'ask',
-        operation: 'load_embeddings'
+        command: "ask",
+        operation: "load_embeddings",
       });
     }
 
@@ -97,11 +83,12 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
     // Generate embedding for the question
     const questionEmbedding = await withSpinner(
       `🧠 Generating embedding for question...`,
-      async () => await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: question
-      }),
-      { preset: 'pulse' }
+      async () =>
+        await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: question,
+        }),
+      { preset: "pulse" },
     );
 
     const questionVector = questionEmbedding.data[0]?.embedding;
@@ -109,7 +96,7 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
       return {
         success: false,
         message: "Failed to generate question embedding",
-        error: "OpenAI API returned empty embedding"
+        error: "OpenAI API returned empty embedding",
       };
     }
 
@@ -118,40 +105,45 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
       `🔍 Finding ${topK} most relevant tweets...`,
       async () => {
         return embeddings
-          .map(tweet => ({
+          .map((tweet) => ({
             ...tweet,
-            similarity: cosine(questionVector, tweet.vec)
+            similarity: cosineSimilarity(questionVector, tweet.vec),
           }))
           .sort((a, b) => b.similarity - a.similarity)
           .slice(0, topK);
       },
-      { preset: 'arrow' }
+      { preset: "arrow" },
     );
 
     // Prepare context for GPT
     const context = similarities
-      .map((tweet, index) => `${index + 1}. ${tweet.text} (similarity: ${tweet.similarity.toFixed(3)})`)
+      .map(
+        (tweet, index) =>
+          `${index + 1}. ${tweet.text} (similarity: ${tweet.similarity.toFixed(3)})`,
+      )
       .join("\n");
 
     // Generate answer using GPT
     const response = await withSpinner(
       `🤖 Generating answer using ${model}...`,
-      async () => await openai.chat.completions.create({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: "You are an AI assistant that answers questions based on tweet content. Use the provided tweets as context to answer the user's question. Be concise and reference specific tweets when relevant."
-          },
-          {
-            role: "user",
-            content: `Question: ${question}\n\nRelevant tweets:\n${context}`
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 500
-      }),
-      { preset: 'star' }
+      async () =>
+        await openai.chat.completions.create({
+          model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are an AI assistant that answers questions based on tweet content. Use the provided tweets as context to answer the user's question. Be concise and reference specific tweets when relevant.",
+            },
+            {
+              role: "user",
+              content: `Question: ${question}\n\nRelevant tweets:\n${context}`,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 500,
+        }),
+      { preset: "star" },
     );
 
     const answer = response.choices[0]?.message?.content;
@@ -159,7 +151,7 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
       return {
         success: false,
         message: "Failed to generate answer",
-        error: "OpenAI API returned empty response"
+        error: "OpenAI API returned empty response",
       };
     }
 
@@ -173,9 +165,12 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
     console.log("=".repeat(60));
 
     similarities.forEach((tweet, index) => {
-      console.log(`${index + 1}. [${tweet.similarity.toFixed(3)}] ${tweet.text}`);
+      console.log(
+        `${index + 1}. [${tweet.similarity.toFixed(3)}] ${tweet.text}`,
+      );
       if (tweet.user) console.log(`   👤 @${tweet.user}`);
-      if (tweet.created_at) console.log(`   📅 ${new Date(tweet.created_at).toLocaleDateString()}`);
+      if (tweet.created_at)
+        console.log(`   📅 ${new Date(tweet.created_at).toLocaleDateString()}`);
       console.log();
     });
 
@@ -185,23 +180,22 @@ export async function askCommand(options: QueryOptions): Promise<CommandResult> 
       data: {
         question,
         answer,
-        relevantTweets: similarities.map(t => ({
+        relevantTweets: similarities.map((t) => ({
           text: t.text,
           similarity: t.similarity,
           user: t.user,
-          created_at: t.created_at
+          created_at: t.created_at,
         })),
         model,
-        topK
-      }
+        topK,
+      },
     };
-
   } catch (error) {
     // Use enhanced error handling
     return handleCommandError(error, {
-      command: 'ask',
-      operation: 'question_answering',
-      timestamp: new Date()
+      command: "ask",
+      operation: "question_answering",
+      timestamp: new Date(),
     });
   }
 }

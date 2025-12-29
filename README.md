@@ -313,8 +313,14 @@ xgpt/
 │   │   └── timeRange.ts         # Date range selection
 │   ├── types/
 │   │   └── common.ts            # TypeScript type definitions
+│   ├── rateLimit/
+│   │   ├── manager.ts           # Token bucket rate limiting
+│   │   ├── config.ts            # Rate limit profiles
+│   │   └── estimator.ts         # Collection time estimates
 │   └── utils/
-│       └── dateUtils.ts         # Date manipulation utilities
+│       ├── dateUtils.ts         # Date manipulation utilities
+│       ├── array.ts             # Array chunking utilities
+│       └── math.ts              # Cosine similarity for search
 ├── benchmarks/
 │   └── sqlite-performance.ts   # Performance benchmarking system
 ├── data/
@@ -519,6 +525,6 @@ This tool is for educational and research purposes only. Please respect X/Twitte
 - **[SQLite](https://sqlite.org/)** - High-performance embedded database
 - **[Drizzle ORM](https://orm.drizzle.team/)** - Type-safe database toolkit
 - **[OpenAI](https://openai.com/)** - GPT-4o-mini and text-embedding-3-small models
-- **[@the-convocation/twitter-scraper](https://github.com/the-convocation/twitter-scraper)** - Reliable Twitter/X scraping
+- **[@the-convocation/twitter-scraper](https://github.com/the-convocation/twitter-scraper)** - Twitter/X scraping (v0.21.0 with rate limit strategies)
 - **[Commander.js](https://github.com/tj/commander.js/)** - Feature-rich CLI framework
 - **[cli-progress](https://github.com/npkgz/cli-progress)** - Beautiful progress indicators

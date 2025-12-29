@@ -213,7 +213,7 @@ async function validateJsonData(tweets: Tweet[], embeddings: TweetWithEmbedding[
   // Validate tweets structure
   for (let i = 0; i < tweets.length; i++) {
     const tweet = tweets[i];
-    if (!tweet || !tweet.id || !tweet.text || !tweet.user) {
+    if (!tweet?.id || !tweet.text || !tweet.user) {
       const error = `Tweet at index ${i} missing required fields (id, text, user)`;
       stats.errors.push(error);
       throw new Error(error);
@@ -223,7 +223,7 @@ async function validateJsonData(tweets: Tweet[], embeddings: TweetWithEmbedding[
   // Validate embeddings structure
   for (let i = 0; i < embeddings.length; i++) {
     const embedding = embeddings[i];
-    if (!embedding || !embedding.id || !embedding.vec || !Array.isArray(embedding.vec)) {
+    if (!embedding?.id || !embedding.vec || !Array.isArray(embedding.vec)) {
       const error = `Embedding at index ${i} missing required fields (id, vec array)`;
       stats.errors.push(error);
       throw new Error(error);
@@ -268,7 +268,7 @@ async function migrateTweets(tweets: Tweet[], config: MigrationConfig, stats: Mi
               userId = existingUser.id;
             } else {
               // Create new user using upsertUser
-              const newUser = await userQueries.upsertUser(tweet.user!, tweet.user!);
+              const newUser = await userQueries.upsertUser(tweet.user!, tweet.user);
               userId = newUser.id;
               stats.usersCreated++;
             }

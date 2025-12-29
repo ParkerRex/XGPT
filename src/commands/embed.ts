@@ -1,6 +1,11 @@
 import OpenAI from "openai";
 import "dotenv/config";
-import type { Tweet, TweetWithEmbedding, EmbeddingOptions, CommandResult } from "../types/common.js";
+import type {
+  Tweet,
+  TweetWithEmbedding,
+  EmbeddingOptions,
+  CommandResult,
+} from "../types/common.js";
 import type { ProgressContext } from "../ui/index.js";
 import { tweetQueries, embeddingQueries } from "../database/queries.js";
 import type { NewEmbedding } from "../database/schema.js";
@@ -10,22 +15,19 @@ import {
   AuthenticationError,
   DatabaseError,
   NetworkError,
-  ErrorCategory
+  ErrorCategory,
 } from "../errors/index.js";
 import {
   createProgressBar,
   ProgressPresets,
   withSpinner,
-  StatusLine
+  StatusLine,
 } from "../ui/index.js";
+import { chunkArray } from "../utils/array.js";
 
-function chunkArray<T>(arr: T[], n: number): T[][] {
-  return Array.from({ length: Math.ceil(arr.length / n) }, (_v, i) =>
-    arr.slice(i * n, i * n + n)
-  );
-}
-
-export async function embedCommand(options: EmbeddingOptions = {}): Promise<CommandResult> {
+export async function embedCommand(
+  options: EmbeddingOptions = {},
+): Promise<CommandResult> {
   try {
     // Load user configuration for defaults
     const userConfig = await loadConfig();
@@ -34,7 +36,7 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
       model = userConfig.embedding.model,
       batchSize = userConfig.embedding.batchSize,
       inputFile = "tweets.json", // Legacy parameter, now ignored
-      outputFile = "vectors.json" // Legacy parameter, now ignored
+      outputFile = "vectors.json", // Legacy parameter, now ignored
     } = options;
 
     console.log(`🧠 Starting embedding generation...`);
@@ -44,11 +46,11 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
     const apiKey = userConfig.api.openaiKey || process.env.OPENAI_KEY;
     if (!apiKey) {
       const authError = new AuthenticationError(
-        'OpenAI API key is missing or invalid',
+        "OpenAI API key is missing or invalid",
         {
-          command: 'embed',
-          operation: 'api_key_check'
-        }
+          command: "embed",
+          operation: "api_key_check",
+        },
       );
       return handleCommandError(authError);
     }
@@ -64,24 +66,26 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
         return {
           success: false,
           message: "No tweets without embeddings found in database",
-          error: "All tweets already have embeddings, or no tweets exist. Scrape some tweets first using: xgpt scrape <username>"
+          error:
+            "All tweets already have embeddings, or no tweets exist. Scrape some tweets first using: xgpt scrape <username>",
         };
       }
 
       // Convert database tweets to Tweet format
-      tweets = dbTweets.map(dbTweet => ({
+      tweets = dbTweets.map((dbTweet) => ({
         id: dbTweet.id,
         text: dbTweet.text,
         user: dbTweet.username,
         created_at: dbTweet.createdAt?.toISOString(),
-        metadata: dbTweet.metadata ? JSON.parse(dbTweet.metadata as string) : undefined
+        metadata: dbTweet.metadata
+          ? JSON.parse(dbTweet.metadata as string)
+          : undefined,
       }));
-
     } catch (error) {
       return {
         success: false,
         message: "Failed to read tweets from database",
-        error: error instanceof Error ? error.message : "Database query failed"
+        error: error instanceof Error ? error.message : "Database query failed",
       };
     }
 
@@ -98,7 +102,8 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
     // Create progress bar for embedding generation
     const progressBar = createProgressBar({
       ...ProgressPresets.embedding(model),
-      format: '🧠 Embedding |{bar}| {percentage}% | {value}/{total} | Batch: {batchNumber}/{totalBatches} | ETA: {eta}s'
+      format:
+        "🧠 Embedding |{bar}| {percentage}% | {value}/{total} | Batch: {batchNumber}/{totalBatches} | ETA: {eta}s",
     });
     progressBar.start(tweets.length);
 
@@ -110,14 +115,14 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
         processed: processedCount,
         metadata: {
           batchNumber: i + 1,
-          totalBatches: chunks.length
-        }
+          totalBatches: chunks.length,
+        },
       } as Partial<ProgressContext>);
 
       try {
         const response = await openai.embeddings.create({
           model,
-          input: chunk!.map(tweet => tweet.text)
+          input: chunk!.map((tweet) => tweet.text),
         });
 
         // Combine tweets with their embeddings
@@ -127,7 +132,7 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
             // For legacy compatibility (vectors.json format)
             embeddings.push({
               ...tweet,
-              vec: embeddingData.embedding
+              vec: embeddingData.embedding,
             });
 
             // Prepare for database insertion
@@ -135,7 +140,7 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
               tweetId: tweet.id,
               model: model,
               vector: JSON.stringify(embeddingData.embedding),
-              dimensions: embeddingData.embedding.length
+              dimensions: embeddingData.embedding.length,
             });
           }
         });
@@ -145,21 +150,20 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
           processed: processedCount,
           metadata: {
             batchNumber: i + 1,
-            totalBatches: chunks.length
-          }
+            totalBatches: chunks.length,
+          },
         } as Partial<ProgressContext>);
 
         // Small delay to respect rate limits
         if (i < chunks.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
-
       } catch (error) {
         progressBar.fail(`Failed to process chunk ${i + 1}`);
         return handleCommandError(error, {
-          command: 'embed',
-          operation: 'embedding_generation',
-          metadata: { chunkNumber: i + 1, totalChunks: chunks.length }
+          command: "embed",
+          operation: "embedding_generation",
+          metadata: { chunkNumber: i + 1, totalChunks: chunks.length },
         });
       }
     }
@@ -176,18 +180,18 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
         },
         {
           successText: `✅ Successfully saved ${embeddingBatch.length} embeddings to database`,
-          failText: `❌ Failed to save embeddings to database`
-        }
-      ).catch(error => {
+          failText: `❌ Failed to save embeddings to database`,
+        },
+      ).catch((error) => {
         console.error(`❌ Failed to save embeddings to database:`, error);
         const dbError = new DatabaseError(
-          'Failed to save embeddings to database',
+          "Failed to save embeddings to database",
           {
-            command: 'embed',
-            operation: 'database_save',
-            metadata: { embeddingCount: embeddingBatch.length }
+            command: "embed",
+            operation: "database_save",
+            metadata: { embeddingCount: embeddingBatch.length },
           },
-          error instanceof Error ? error : undefined
+          error instanceof Error ? error : undefined,
         );
         return handleCommandError(dbError);
       });
@@ -204,14 +208,13 @@ export async function embedCommand(options: EmbeddingOptions = {}): Promise<Comm
         tweetsEmbedded: embeddings.length,
         model,
         vectorDimensions: embeddings[0]?.vec.length || 0,
-        embeddingsInDatabase: embeddingBatch.length
-      }
+        embeddingsInDatabase: embeddingBatch.length,
+      },
     };
-
   } catch (error) {
     return handleCommandError(error, {
-      command: 'embed',
-      operation: 'embedding_workflow'
+      command: "embed",
+      operation: "embedding_workflow",
     });
   }
 }

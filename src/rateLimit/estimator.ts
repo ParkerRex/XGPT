@@ -132,15 +132,15 @@ export class TweetEstimator {
       .sort((a, b) => {
         // Prefer lower risk profiles when multiple options are feasible
         const riskOrder = { low: 0, medium: 1, high: 2 };
-        const aRisk = RATE_LIMIT_PROFILES[a[0] as keyof typeof RATE_LIMIT_PROFILES]!.riskLevel;
-        const bRisk = RATE_LIMIT_PROFILES[b[0] as keyof typeof RATE_LIMIT_PROFILES]!.riskLevel;
+        const aRisk = RATE_LIMIT_PROFILES[a[0]]!.riskLevel;
+        const bRisk = RATE_LIMIT_PROFILES[b[0]]!.riskLevel;
         return riskOrder[aRisk] - riskOrder[bRisk];
       });
 
     if (feasibleProfiles.length > 0) {
       const [profileName, estimate] = feasibleProfiles[0]!;
       return {
-        profile: RATE_LIMIT_PROFILES[profileName as keyof typeof RATE_LIMIT_PROFILES]!,
+        profile: RATE_LIMIT_PROFILES[profileName]!,
         estimate,
         feasible: true
       };
