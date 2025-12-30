@@ -382,7 +382,7 @@ program
 program
   .command("serve")
   .description("Start the web UI server")
-  .option("--port <number>", "Port to run the server on", "3001")
+  .option("--port <number>", "Port to run the server on", "3002")
   .action(async (options) => {
     await ensureDatabaseReady();
     const port = parseInt(options.port);
