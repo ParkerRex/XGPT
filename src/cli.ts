@@ -9,6 +9,7 @@ import {
   askCommand,
   interactiveCommand,
   searchCommand,
+  discoverCommand,
   listConfigCommand,
   getConfigCommand,
   setConfigCommand,
@@ -209,6 +210,38 @@ program
       resume: options.resume ? parseInt(options.resume) : undefined,
       cleanup: options.cleanup,
       olderThan: options.olderThan,
+    });
+
+    if (options.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else if (!result.success) {
+      console.error(`[error] ${result.message}`);
+      if (result.error) console.error(`   ${result.error}`);
+      process.exit(1);
+    }
+  });
+
+// Users command - user discovery and management
+const usersCommand = program
+  .command("users")
+  .description("Discover and manage Twitter users");
+
+usersCommand
+  .command("discover")
+  .description("Search for Twitter profiles by bio, name, or keywords")
+  .argument(
+    "<query>",
+    'Search query (e.g., "google engineer", "AI researcher")',
+  )
+  .option("--max <number>", "Maximum profiles to find", "20")
+  .option("--save", "Save discovered users to database", false)
+  .option("--json", "Output results as JSON", false)
+  .action(async (query, options) => {
+    const result = await discoverCommand({
+      query,
+      maxResults: parseInt(options.max),
+      save: options.save,
+      json: options.json,
     });
 
     if (options.json) {

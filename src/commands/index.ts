@@ -4,6 +4,7 @@ export { embedCommand, generateEmbeddings } from "./embed.js";
 export { askCommand, askQuestion } from "./ask.js";
 export { interactiveCommand } from "./interactive.js";
 export { searchCommand } from "./search.js";
+export { discoverCommand } from "./users.js";
 export {
   listConfigCommand,
   getConfigCommand,

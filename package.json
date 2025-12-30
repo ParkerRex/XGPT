@@ -9,6 +9,7 @@
     "xgpt": "./src/cli.ts"
   },
   "scripts": {
+    "postinstall": "bun run scripts/patch-twitter-scraper.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "dev": "bun run src/cli.ts",
