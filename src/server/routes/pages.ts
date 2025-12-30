@@ -94,7 +94,7 @@ export function registerPageRoutes(app: Elysia) {
           card(
             "Scrape Tweets from User",
             `
-          <form hx-post="/api/scrape" hx-ext="json-enc" hx-target="#scrape-result" hx-indicator="#scrape-indicator">
+          <form hx-post="/api/scrape" hx-ext="json-enc" hx-target="#scrape-result" hx-indicator="#scrape-indicator" hx-trigger="submit">
             <div class="grid grid-2">
               <div class="form-group">
                 <label for="username">Username</label>
@@ -129,7 +129,7 @@ export function registerPageRoutes(app: Elysia) {
           card(
             "Search Tweets by Topic",
             `
-          <form hx-post="/api/search" hx-ext="json-enc" hx-target="#search-result" hx-indicator="#search-indicator">
+          <form hx-post="/api/search" hx-ext="json-enc" hx-target="#search-result" hx-indicator="#search-indicator" hx-trigger="submit">
             <div class="form-group">
               <label for="query">Search Query (comma-separated terms)</label>
               <input type="text" id="query" name="query" placeholder="AGI, GPT-5, artificial intelligence" required>
@@ -177,7 +177,7 @@ export function registerPageRoutes(app: Elysia) {
           <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.875rem;">
             Search for Twitter profiles by bio, name, or keywords. Find users with specific interests or affiliations.
           </p>
-          <form hx-post="/api/discover" hx-ext="json-enc" hx-target="#discover-result" hx-indicator="#discover-indicator">
+          <form hx-post="/api/discover" hx-ext="json-enc" hx-target="#discover-result" hx-indicator="#discover-indicator" hx-trigger="submit">
             <div class="form-group">
               <label for="query">Search Query</label>
               <input type="text" id="query" name="query" placeholder="google engineer, AI researcher, indie hacker..." required>
@@ -211,7 +211,7 @@ export function registerPageRoutes(app: Elysia) {
           card(
             "Ask About Tweets",
             `
-          <form hx-post="/api/ask" hx-ext="json-enc" hx-target="#ask-result" hx-indicator="#ask-indicator">
+          <form hx-post="/api/ask" hx-ext="json-enc" hx-target="#ask-result" hx-indicator="#ask-indicator" hx-trigger="submit, keydown[ctrlKey&&key=='Enter'] from:find textarea">
             <div class="form-group">
               <label for="question">Your Question</label>
               <textarea id="question" name="question" rows="3" placeholder="What are the main themes discussed?" required></textarea>

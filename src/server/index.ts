@@ -6,6 +6,7 @@
 import { Elysia } from "elysia";
 import { html } from "@elysiajs/html";
 import { registerPageRoutes, registerApiRoutes } from "./routes/index.js";
+import { resolve } from "path";
 
 /**
  * Create and configure the XGPT web server
@@ -14,6 +15,11 @@ import { registerPageRoutes, registerApiRoutes } from "./routes/index.js";
  */
 export function createServer(port = 3000) {
   const app = new Elysia().use(html());
+
+  // Serve favicon
+  app.get("/favicon.svg", () =>
+    Bun.file(resolve(import.meta.dir, "../../public/favicon.svg")),
+  );
 
   // Register routes
   registerPageRoutes(app);

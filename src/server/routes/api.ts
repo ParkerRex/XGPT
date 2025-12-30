@@ -31,9 +31,9 @@ export function registerApiRoutes(app: Elysia) {
         try {
           const cmdResult = await scrapeCommand({
             username: body.username,
-            includeReplies: body.includeReplies || false,
-            includeRetweets: body.includeRetweets || false,
-            maxTweets: body.maxTweets || 100,
+            includeReplies: !!body.includeReplies,
+            includeRetweets: !!body.includeRetweets,
+            maxTweets: Number(body.maxTweets) || 100,
           });
 
           if (cmdResult.success) {
@@ -53,9 +53,9 @@ export function registerApiRoutes(app: Elysia) {
       {
         body: t.Object({
           username: t.String(),
-          includeReplies: t.Optional(t.Boolean()),
-          includeRetweets: t.Optional(t.Boolean()),
-          maxTweets: t.Optional(t.Number()),
+          includeReplies: t.Optional(t.Union([t.Boolean(), t.String()])),
+          includeRetweets: t.Optional(t.Union([t.Boolean(), t.String()])),
+          maxTweets: t.Optional(t.Union([t.Number(), t.String()])),
         }),
       },
     )
@@ -66,10 +66,10 @@ export function registerApiRoutes(app: Elysia) {
         try {
           const cmdResult = await searchCommand({
             query: body.query,
-            maxTweets: body.maxTweets || 100,
-            days: body.days,
+            maxTweets: Number(body.maxTweets) || 100,
+            days: body.days ? Number(body.days) : undefined,
             mode: body.mode as "latest" | "top",
-            embed: body.embed || false,
+            embed: !!body.embed,
           });
 
           if (cmdResult.success) {
@@ -91,10 +91,10 @@ export function registerApiRoutes(app: Elysia) {
       {
         body: t.Object({
           query: t.String(),
-          maxTweets: t.Optional(t.Number()),
-          days: t.Optional(t.Number()),
+          maxTweets: t.Optional(t.Union([t.Number(), t.String()])),
+          days: t.Optional(t.Union([t.Number(), t.String()])),
           mode: t.Optional(t.String()),
-          embed: t.Optional(t.Boolean()),
+          embed: t.Optional(t.Union([t.Boolean(), t.String()])),
         }),
       },
     )
@@ -102,19 +102,21 @@ export function registerApiRoutes(app: Elysia) {
     .post(
       "/api/discover",
       async ({ body }) => {
+        const maxResults = Number(body.maxResults) || 20;
+        const save = body.save === undefined ? true : !!body.save;
         const jobId = jobTracker.createJob("discover", { query: body.query });
         try {
           jobTracker.updateProgress(
             jobId,
             0,
-            body.maxResults || 20,
+            maxResults,
             `Searching for "${body.query}"...`,
           );
 
           const cmdResult = await discoverCommand({
             query: body.query,
-            maxResults: body.maxResults || 20,
-            save: body.save ?? true,
+            maxResults,
+            save,
             json: true,
           });
 
@@ -170,8 +172,8 @@ export function registerApiRoutes(app: Elysia) {
       {
         body: t.Object({
           query: t.String(),
-          maxResults: t.Optional(t.Number()),
-          save: t.Optional(t.Boolean()),
+          maxResults: t.Optional(t.Union([t.Number(), t.String()])),
+          save: t.Optional(t.Union([t.Boolean(), t.String()])),
         }),
       },
     )
@@ -182,7 +184,7 @@ export function registerApiRoutes(app: Elysia) {
         try {
           const cmdResult = await askCommand({
             question: body.question,
-            topK: body.topK || 5,
+            topK: Number(body.topK) || 5,
             model: body.model || "gpt-4o-mini",
           });
 
@@ -211,7 +213,7 @@ export function registerApiRoutes(app: Elysia) {
       {
         body: t.Object({
           question: t.String(),
-          topK: t.Optional(t.Number()),
+          topK: t.Optional(t.Union([t.Number(), t.String()])),
           model: t.Optional(t.String()),
         }),
       },
@@ -223,7 +225,7 @@ export function registerApiRoutes(app: Elysia) {
         try {
           const cmdResult = await embedCommand({
             model: body.model || "text-embedding-3-small",
-            batchSize: body.batchSize || 1000,
+            batchSize: Number(body.batchSize) || 1000,
           });
 
           if (cmdResult.success) {
@@ -243,7 +245,7 @@ export function registerApiRoutes(app: Elysia) {
       {
         body: t.Object({
           model: t.Optional(t.String()),
-          batchSize: t.Optional(t.Number()),
+          batchSize: t.Optional(t.Union([t.Number(), t.String()])),
         }),
       },
     )
