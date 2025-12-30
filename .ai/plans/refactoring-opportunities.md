@@ -192,7 +192,7 @@ app.get('/api/jobs/stream', ({ set }) => {
 
 ## Testing
 
-### 20. Add integration tests for web UI [P1]
+### 20. ~~Add integration tests for web UI~~ [P1] DONE
 **Problem:** No tests for server routes or API endpoints.
 **Solution:** Add tests using Elysia's test utilities:
 ```typescript
@@ -200,6 +200,13 @@ const app = createServer(0);
 const response = await app.handle(new Request('/api/jobs'));
 ```
 **Files:** `tests/integration/server.test.ts`
+**Status:** Completed. Created comprehensive integration tests covering:
+- Page routes (Dashboard, Scrape, Search, Discover, Ask, Config)
+- API endpoints (jobs, db/init, config/set)
+- SSE streaming endpoint
+- Error handling and validation
+- Response format verification
+- 26 passing tests, 12 skipped (require API mocking for e2e)
 
 ### 21. Add E2E tests with Playwright [P2]
 **Problem:** No tests for full UI flows.
@@ -312,14 +319,18 @@ export async function getTwitterClient(): Promise<Scraper> {
 ```
 **Files:** `src/twitter/client.ts`, `src/commands/*.ts`
 
-### 33. Add logging system [P1]
+### 33. ~~Add logging system~~ [P1] DONE
 **Problem:** Using `console.log` everywhere. No log levels, no structured output.
-**Solution:** Add logger:
-```typescript
-const logger = createLogger({ level: process.env.LOG_LEVEL || 'info' });
-logger.info('Starting scrape', { username, maxTweets });
-```
-**Files:** `src/utils/logger.ts`, all files using console.log
+**Solution:** Created `src/utils/logger.ts` with:
+- `Logger` class with log levels: debug, info, warn, error, silent
+- Environment-based log level via `LOG_LEVEL` env var (defaults to 'info')
+- Namespaced loggers via `createLogger(namespace)` for module-specific logging
+- Pre-configured loggers for common modules (jobs, scrape, search, discover, embed, ask, db, api, config, rate, cli)
+- Methods: `debug()`, `info()`, `warn()`, `error()`, `success()`, `status(tag)`, `data()`
+- Structured context logging: `log.info('message', { key: value })`
+- Child logger support: `log.child('submodule')`
+**Files:** `src/utils/logger.ts`, `src/jobs/tracker.ts`, `src/commands/runner.ts`, `src/rateLimit/manager.ts`, `src/utils/retry.ts`
+**Status:** Completed. Core infrastructure modules updated to use logger. Remaining files can be migrated incrementally.
 
 ### 34. Add request ID tracking [P2]
 **Problem:** Can't trace a request through logs.
@@ -392,16 +403,16 @@ CMD ["bun", "run", "start"]
 4. Integrate job tracking with all commands
 
 ### Phase 2 - Reliability (P1)
-5. Add proper database migrations runner
-6. Make job tracker persistent
-7. Standardize error responses
-8. Add retry logic to Twitter API calls
-9. Add logging system
-10. Remove `any` types
+5. ~~Add proper database migrations runner~~ DONE
+6. ~~Make job tracker persistent~~ DONE
+7. ~~Standardize error responses~~ DONE
+8. ~~Add retry logic to Twitter API calls~~ DONE
+9. ~~Add logging system~~ DONE
+10. ~~Remove `any` types~~ DONE
 11. Add health check endpoint
 12. Consolidate config
-13. Unify command result handling
-14. Consolidate duplicate code
+13. ~~Unify command result handling~~ DONE
+14. ~~Consolidate duplicate code~~ DONE
 
 ### Phase 3 - Quality (P2)
 15. Create UI component system

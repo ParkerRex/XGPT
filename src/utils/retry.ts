@@ -11,6 +11,9 @@ import {
   type RetryConfig,
   formatDelay,
 } from "./backoff.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("retry");
 
 /**
  * Error categories for retry decisions
@@ -268,10 +271,10 @@ export async function withTwitterRetry<T>(
     const classification = classifyError(error);
 
     // Log retry attempt
-    console.log(
-      `[retry] ${operationName} failed (attempt ${attempt}). ${classification.friendlyMessage}`,
+    log.info(
+      `${operationName} failed (attempt ${attempt}). ${classification.friendlyMessage}`,
     );
-    console.log(`[retry] Waiting ${formatDelay(delay)} before retry...`);
+    log.info(`Waiting ${formatDelay(delay)} before retry...`);
 
     callbacks?.onRetry?.(attempt, delay, error);
   };
@@ -336,10 +339,10 @@ export async function withSmartRetry<T>(
       // Cap the delay
       delay = Math.min(delay, 300000); // Max 5 minutes
 
-      console.log(
-        `[retry] ${operationName} failed (attempt ${attempts}/${maxAttempts}). ${classification.friendlyMessage}`,
+      log.info(
+        `${operationName} failed (attempt ${attempts}/${maxAttempts}). ${classification.friendlyMessage}`,
       );
-      console.log(`[retry] Waiting ${formatDelay(delay)}...`);
+      log.info(`Waiting ${formatDelay(delay)}...`);
 
       callbacks?.onRetry?.(attempts, delay, error);
 

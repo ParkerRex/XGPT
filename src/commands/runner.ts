@@ -7,6 +7,7 @@ import type { CommandResult } from "../types/common.js";
 import { handleCommandError } from "../errors/index.js";
 import type { ErrorContext } from "../errors/types.js";
 import { jobTracker } from "../jobs/index.js";
+import { createLogger } from "../utils/logger.js";
 
 export interface CommandRunnerOptions {
   /** Name of the command for logging */
@@ -44,8 +45,10 @@ export async function runCommand<T extends CommandResult>(
     jobId = jobTracker.createJob(name, jobMetadata || {});
   }
 
+  const log = createLogger(name);
+
   if (verbose) {
-    console.log(`[${name}] Starting command execution...`);
+    log.debug("Starting command execution...");
   }
 
   try {
@@ -59,9 +62,9 @@ export async function runCommand<T extends CommandResult>(
     }
 
     if (verbose) {
-      console.log(
-        `[${name}] Command ${result.success ? "succeeded" : "failed"} in ${duration}ms`,
-      );
+      log.debug(`Command ${result.success ? "succeeded" : "failed"}`, {
+        duration: `${duration}ms`,
+      });
     }
 
     return {
@@ -78,7 +81,7 @@ export async function runCommand<T extends CommandResult>(
     }
 
     if (verbose) {
-      console.error(`[${name}] Command failed after ${duration}ms`);
+      log.error(`Command failed`, undefined, { duration: `${duration}ms` });
     }
 
     // Handle error with context
@@ -213,9 +216,11 @@ export async function runWithRetry<T extends CommandResult>(
 
       // Wait before retrying
       if (runnerOptions.verbose) {
-        console.log(
-          `[${runnerOptions.name}] Retrying in ${retryDelayMs}ms (attempt ${attempts}/${maxRetries})...`,
-        );
+        const retryLog = createLogger(runnerOptions.name);
+        retryLog.debug(`Retrying in ${retryDelayMs}ms`, {
+          attempt: attempts,
+          maxRetries,
+        });
       }
       await sleep(retryDelayMs);
     } catch (error) {
@@ -224,9 +229,11 @@ export async function runWithRetry<T extends CommandResult>(
       }
 
       if (runnerOptions.verbose) {
-        console.log(
-          `[${runnerOptions.name}] Retrying in ${retryDelayMs}ms (attempt ${attempts}/${maxRetries})...`,
-        );
+        const retryLog = createLogger(runnerOptions.name);
+        retryLog.debug(`Retrying in ${retryDelayMs}ms`, {
+          attempt: attempts,
+          maxRetries,
+        });
       }
       await sleep(retryDelayMs);
     }

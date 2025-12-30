@@ -55,6 +55,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Rate Limiting**: `src/rateLimit/` - Token bucket algorithm with multiple profiles
 - **Configuration**: `src/config/` - Persistent user preferences system
 - **Error Handling**: `src/errors/` - Centralized error management
+- **Logging**: `src/utils/logger.ts` - Structured logging with levels and namespaces
+  - Log levels: debug, info, warn, error, silent (controlled via `LOG_LEVEL` env var)
+  - Pre-configured loggers: `loggers.jobs`, `loggers.scrape`, `loggers.api`, etc.
 - **Prompts**: `src/prompts/` - Interactive CLI prompts for user input
 
 ### Web UI

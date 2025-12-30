@@ -5,6 +5,9 @@
 
 import { jobQueries } from "../database/queries.js";
 import type { Job as DbJob } from "../database/schema.js";
+import { loggers } from "../utils/logger.js";
+
+const log = loggers.jobs;
 
 export interface Job {
   id: string;
@@ -80,13 +83,13 @@ class JobTracker {
       // Mark very old running jobs as failed (crash recovery)
       const staleCount = await jobQueries.markStaleJobsFailed(3600000); // 1 hour
       if (staleCount > 0) {
-        console.log(`[jobs] Marked ${staleCount} stale jobs as failed`);
+        log.info(`Marked ${staleCount} stale jobs as failed`);
       }
 
       // Clean up old completed jobs
       const cleanedCount = await jobQueries.cleanupOldJobs(86400000); // 24 hours
       if (cleanedCount > 0) {
-        console.log(`[jobs] Cleaned up ${cleanedCount} old jobs`);
+        log.info(`Cleaned up ${cleanedCount} old jobs`);
       }
 
       // Load recent jobs (running + recently completed)
@@ -96,12 +99,10 @@ class JobTracker {
       }
 
       this.initialized = true;
-      console.log(`[jobs] Loaded ${recentJobs.length} jobs from database`);
+      log.info(`Loaded ${recentJobs.length} jobs from database`);
     } catch (error) {
       // Database might not be initialized yet, that's okay
-      console.log(
-        "[jobs] Could not load jobs from database (may not be initialized)",
-      );
+      log.debug("Could not load jobs from database (may not be initialized)");
       this.initialized = true;
     }
   }
@@ -140,7 +141,7 @@ class JobTracker {
         startedAt: new Date(),
       });
     } catch (error) {
-      console.error("[jobs] Failed to persist job to database:", error);
+      log.error("Failed to persist job to database", error);
     }
 
     this.jobs.set(id, job);
@@ -196,7 +197,7 @@ class JobTracker {
       try {
         await jobQueries.completeJob(id, success, errorMessage);
       } catch (error) {
-        console.error("[jobs] Failed to persist job completion:", error);
+        log.error("Failed to persist job completion", error);
       }
 
       this.notifyListeners();
@@ -236,7 +237,7 @@ class JobTracker {
     try {
       await jobQueries.completeJob(id, false, "Cancelled by user");
     } catch (error) {
-      console.error("[jobs] Failed to persist job cancellation:", error);
+      log.error("Failed to persist job cancellation", error);
     }
 
     this.notifyListeners();

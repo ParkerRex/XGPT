@@ -58,6 +58,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Automatic error categorization (auth, network, database, rate limit, etc.)
   - User-friendly messages with actionable recovery steps
   - Context-aware error tracking with metadata
+- **Logging**: `src/utils/logger.ts` - Structured logging with levels and namespaces
+  - Log levels: debug, info, warn, error, silent (controlled via `LOG_LEVEL` env var)
+  - Pre-configured loggers: `loggers.jobs`, `loggers.scrape`, `loggers.api`, etc.
+  - Usage: `log.info('message', { context })`, `log.error('msg', error)`
 - **Prompts**: `src/prompts/` - Interactive CLI prompts for user input
 
 ### Web UI
@@ -133,6 +137,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Handle rate limit errors with backoff strategies from `src/utils/backoff.ts`
 - Three profiles: conservative (2 req/min), moderate (4 req/min), aggressive (8 req/min)
 
+### Logging
+- Use the structured logger from `src/utils/logger.ts` instead of `console.log`
+- Import pre-configured loggers or create custom ones:
+  ```typescript
+  import { loggers, createLogger } from './utils/logger.js';
+
+  // Use pre-configured module loggers
+  loggers.jobs.info('Job started', { jobId });
+  loggers.api.error('Request failed', error);
+
+  // Or create a custom logger
+  const log = createLogger('mymodule');
+  log.debug('Debug info');  // Only shown when LOG_LEVEL=debug
+  ```
+- Set `LOG_LEVEL` env var to control verbosity: debug, info (default), warn, error, silent
+
 ## Key File Locations
 - **CLI Entry**: `src/cli.ts`
 - **Web Server**: `src/server.ts` (entry), `src/server/` (modular implementation)
@@ -145,6 +165,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Configuration**: `src/config/`
 - **Error Handling**: `src/errors/`
 - **Rate Limiting**: `src/rateLimit/`
-- **Utilities**: `src/utils/` (format.ts, dateUtils.ts, math.ts, etc.)
+- **Utilities**: `src/utils/` (logger.ts, format.ts, dateUtils.ts, retry.ts, etc.)
 - **Type Definitions**: `src/types/`
 - **Tests**: `tests/` directory with unit, integration, e2e tests

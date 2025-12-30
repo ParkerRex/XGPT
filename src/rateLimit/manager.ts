@@ -13,6 +13,9 @@ import {
   addJitter,
   calculateBackoffDelay,
 } from "./config.js";
+import { loggers } from "../utils/logger.js";
+
+const log = loggers.rateLimit;
 
 export class RateLimitManager {
   private config: RateLimitConfig;
@@ -38,8 +41,9 @@ export class RateLimitManager {
     if (this.isCircuitBreakerOpen()) {
       const waitTime = this.circuitBreakerOpenUntil - Date.now();
       if (waitTime > 0) {
-        console.log(
-          `[lock] Circuit breaker open. Waiting ${Math.ceil(waitTime / 1000)}s before retry...`,
+        log.status(
+          "lock",
+          `Circuit breaker open. Waiting ${Math.ceil(waitTime / 1000)}s before retry...`,
         );
         await this.sleep(waitTime);
         this.resetCircuitBreaker();
@@ -52,8 +56,9 @@ export class RateLimitManager {
     // If no tokens available, wait for next refill
     if (this.tokens < 1) {
       const waitTime = this.calculateWaitTime();
-      console.log(
-        `[wait] Rate limit: Waiting ${Math.ceil(waitTime / 1000)}s before next request...`,
+      log.status(
+        "wait",
+        `Rate limit: Waiting ${Math.ceil(waitTime / 1000)}s before next request...`,
       );
       await this.sleep(waitTime);
       this.refillTokens();
@@ -76,14 +81,15 @@ export class RateLimitManager {
         this.config.maxBackoffMs,
       );
       finalDelay = Math.max(delayWithJitter, backoffDelay);
-      console.log(
-        `[warn] Applying backoff: ${Math.ceil(finalDelay / 1000)}s (attempt ${this.backoffAttempt + 1})`,
-      );
+      log.warn(`Applying backoff: ${Math.ceil(finalDelay / 1000)}s`, {
+        attempt: this.backoffAttempt + 1,
+      });
     }
 
     if (finalDelay > 1000) {
-      console.log(
-        `[slow] Delaying ${Math.ceil(finalDelay / 1000)}s to protect your account...`,
+      log.status(
+        "slow",
+        `Delaying ${Math.ceil(finalDelay / 1000)}s to protect your account...`,
       );
       await this.sleep(finalDelay);
     }
@@ -125,9 +131,9 @@ export class RateLimitManager {
 
       if (isRateLimitError(error)) {
         this.backoffAttempt++;
-        console.log(
-          `[error] Rate limit detected. Consecutive failures: ${this.consecutiveFailures}`,
-        );
+        log.error(`Rate limit detected`, undefined, {
+          consecutiveFailures: this.consecutiveFailures,
+        });
 
         // Open circuit breaker if too many failures
         if (
@@ -189,8 +195,9 @@ export class RateLimitManager {
     this.config.profile = profile;
     // Reset tokens to new burst capacity
     this.tokens = Math.min(this.tokens, profile.burstCapacity);
-    console.log(
-      `[config] Rate limit profile updated to: ${profile.name} (${profile.description})`,
+    log.status(
+      "config",
+      `Rate limit profile updated to: ${profile.name} (${profile.description})`,
     );
   }
 
@@ -260,8 +267,9 @@ export class RateLimitManager {
   private openCircuitBreaker(): void {
     this.circuitBreakerOpenUntil =
       Date.now() + this.config.circuitBreakerResetMs;
-    console.log(
-      `[alert] Circuit breaker opened due to repeated failures. Will retry in ${Math.ceil(this.config.circuitBreakerResetMs / 60000)} minutes.`,
+    log.status(
+      "alert",
+      `Circuit breaker opened due to repeated failures. Will retry in ${Math.ceil(this.config.circuitBreakerResetMs / 60000)} minutes.`,
     );
   }
 
@@ -269,7 +277,7 @@ export class RateLimitManager {
     this.circuitBreakerOpenUntil = 0;
     this.consecutiveFailures = 0;
     this.backoffAttempt = 0;
-    console.log(`[ok] Circuit breaker reset. Resuming normal operation.`);
+    log.success("Circuit breaker reset. Resuming normal operation.");
   }
 
   private sleep(ms: number): Promise<void> {
