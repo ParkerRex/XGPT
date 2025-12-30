@@ -19,11 +19,17 @@ import {
   jobItem,
 } from "../templates/index.js";
 import { formatDuration } from "../../utils/format.js";
-import { toApiError, type ApiErrorResponse } from "../../errors/index.js";
+import {
+  toApiError,
+  toFriendlyError,
+  formatFriendlyErrorHtml,
+  type ApiErrorResponse,
+} from "../../errors/index.js";
 
 /**
  * Standardized error handler for API endpoints
  * Returns HTML for web UI or JSON based on Accept header
+ * Uses user-friendly error messages for better UX
  */
 function handleApiError(
   error: unknown,
@@ -38,12 +44,14 @@ function handleApiError(
     return apiError.toResponse();
   }
 
-  // Return HTML for web UI
-  return result(`Error: ${apiError.message}`, "error");
+  // Return user-friendly HTML for web UI
+  const friendlyError = toFriendlyError(error);
+  return `<div class="result error">${formatFriendlyErrorHtml(friendlyError)}</div>`;
 }
 
 /**
  * Handle command result errors consistently
+ * Converts command errors to user-friendly messages
  */
 function handleCommandError(
   cmdResult: { success: boolean; error?: string; message?: string },
@@ -53,7 +61,9 @@ function handleCommandError(
     const errorMessage =
       cmdResult.error || cmdResult.message || "Operation failed";
     set.status = 400;
-    return result(errorMessage, "error");
+    // Use friendly error formatting for better UX
+    const friendlyError = toFriendlyError(new Error(errorMessage));
+    return `<div class="result error">${formatFriendlyErrorHtml(friendlyError)}</div>`;
   }
   return null;
 }
@@ -69,6 +79,7 @@ function generateJobsHtml(jobs: Job[]): string {
   const jobsHtml = jobs
     .map((job) =>
       jobItem({
+        id: job.id,
         type: job.type,
         status: job.status,
         progress: job.progress,
@@ -94,24 +105,61 @@ export function registerApiRoutes(app: Elysia) {
     .post(
       "/api/scrape",
       async ({ body, set, headers }) => {
+        const maxTweets = Number(body.maxTweets) || 100;
+        const jobContext = await jobTracker.createJob("scrape", {
+          username: body.username,
+          maxTweets,
+        });
+
         try {
+          await jobContext.updateProgress(
+            0,
+            maxTweets,
+            `Scraping @${body.username}...`,
+          );
+
           const cmdResult = await scrapeCommand({
             username: body.username,
             includeReplies: !!body.includeReplies,
             includeRetweets: !!body.includeRetweets,
-            maxTweets: Number(body.maxTweets) || 100,
+            maxTweets,
           });
 
-          const errorHtml = handleCommandError(cmdResult, set);
-          if (errorHtml) return errorHtml;
+          // Check if cancelled during execution
+          if (jobContext.isCancelled()) {
+            return result("Scrape was cancelled", "error");
+          }
+
+          if (!cmdResult.success) {
+            await jobTracker.completeJob(
+              jobContext.jobId,
+              false,
+              cmdResult.error || cmdResult.message,
+            );
+            const errorHtml = handleCommandError(cmdResult, set);
+            if (errorHtml) return errorHtml;
+          }
+
+          const tweetsCollected = cmdResult.data?.tweetsCollected || 0;
+          await jobContext.updateProgress(
+            tweetsCollected,
+            tweetsCollected,
+            `Collected ${tweetsCollected} tweets`,
+          );
+          await jobTracker.completeJob(jobContext.jobId, true);
 
           return result(
             `<strong>Success!</strong><br>
-            Collected ${cmdResult.data?.tweetsCollected || 0} tweets<br>
+            Collected ${tweetsCollected} tweets<br>
             Session ID: ${cmdResult.data?.sessionId || "N/A"}`,
             "success",
           );
         } catch (e: unknown) {
+          await jobTracker.completeJob(
+            jobContext.jobId,
+            false,
+            e instanceof Error ? e.message : "Unknown error",
+          );
           return handleApiError(e, set, headers?.accept);
         }
       },
@@ -128,27 +176,64 @@ export function registerApiRoutes(app: Elysia) {
     .post(
       "/api/search",
       async ({ body, set, headers }) => {
+        const maxTweets = Number(body.maxTweets) || 100;
+        const jobContext = await jobTracker.createJob("search", {
+          query: body.query,
+          maxTweets,
+        });
+
         try {
+          await jobContext.updateProgress(
+            0,
+            maxTweets,
+            `Searching "${body.query}"...`,
+          );
+
           const cmdResult = await searchCommand({
             query: body.query,
-            maxTweets: Number(body.maxTweets) || 100,
+            maxTweets,
             days: body.days ? Number(body.days) : undefined,
             mode: body.mode as "latest" | "top",
             embed: !!body.embed,
           });
 
-          const errorHtml = handleCommandError(cmdResult, set);
-          if (errorHtml) return errorHtml;
+          // Check if cancelled during execution
+          if (jobContext.isCancelled()) {
+            return result("Search was cancelled", "error");
+          }
+
+          if (!cmdResult.success) {
+            await jobTracker.completeJob(
+              jobContext.jobId,
+              false,
+              cmdResult.error || cmdResult.message,
+            );
+            const errorHtml = handleCommandError(cmdResult, set);
+            if (errorHtml) return errorHtml;
+          }
+
+          const tweetsCollected = cmdResult.data?.tweetsCollected || 0;
+          await jobContext.updateProgress(
+            tweetsCollected,
+            tweetsCollected,
+            `Found ${tweetsCollected} tweets`,
+          );
+          await jobTracker.completeJob(jobContext.jobId, true);
 
           return result(
             `<strong>Success!</strong><br>
-            Collected ${cmdResult.data?.tweetsCollected || 0} tweets<br>
+            Collected ${tweetsCollected} tweets<br>
             Users created: ${cmdResult.data?.usersCreated || 0}<br>
             Session ID: ${cmdResult.data?.sessionId || "N/A"}
             ${cmdResult.data?.embeddingsGenerated ? "<br>Embeddings generated!" : ""}`,
             "success",
           );
         } catch (e: unknown) {
+          await jobTracker.completeJob(
+            jobContext.jobId,
+            false,
+            e instanceof Error ? e.message : "Unknown error",
+          );
           return handleApiError(e, set, headers?.accept);
         }
       },
@@ -168,10 +253,13 @@ export function registerApiRoutes(app: Elysia) {
       async ({ body, set, headers }) => {
         const maxResults = Number(body.maxResults) || 20;
         const save = body.save === undefined ? true : !!body.save;
-        const jobId = jobTracker.createJob("discover", { query: body.query });
+        const jobContext = await jobTracker.createJob("discover", {
+          query: body.query,
+          maxResults,
+        });
+
         try {
-          jobTracker.updateProgress(
-            jobId,
+          await jobContext.updateProgress(
             0,
             maxResults,
             `Searching for "${body.query}"...`,
@@ -184,8 +272,17 @@ export function registerApiRoutes(app: Elysia) {
             json: true,
           });
 
+          // Check if cancelled during execution
+          if (jobContext.isCancelled()) {
+            return result("Discover was cancelled", "error");
+          }
+
           if (!cmdResult.success || !cmdResult.data) {
-            jobTracker.completeJob(jobId, false);
+            await jobTracker.completeJob(
+              jobContext.jobId,
+              false,
+              cmdResult.error || cmdResult.message,
+            );
             const errorHtml = handleCommandError(cmdResult, set);
             if (errorHtml) return errorHtml;
           }
@@ -193,13 +290,12 @@ export function registerApiRoutes(app: Elysia) {
           const profiles = cmdResult.data?.profiles || [];
           const savedCount = cmdResult.data?.savedCount || 0;
 
-          jobTracker.updateProgress(
-            jobId,
+          await jobContext.updateProgress(
             profiles.length,
             profiles.length,
             `Found ${profiles.length} profiles`,
           );
-          jobTracker.completeJob(jobId, true);
+          await jobTracker.completeJob(jobContext.jobId, true);
 
           const profilesHtml = profiles
             .map(
@@ -230,7 +326,11 @@ export function registerApiRoutes(app: Elysia) {
             ${card("Discovered Profiles", profilesHtml || "<p>No profiles found</p>")}
           `;
         } catch (e: unknown) {
-          jobTracker.completeJob(jobId, false);
+          await jobTracker.completeJob(
+            jobContext.jobId,
+            false,
+            e instanceof Error ? e.message : "Unknown error",
+          );
           return handleApiError(e, set, headers?.accept);
         }
       },
@@ -288,22 +388,55 @@ export function registerApiRoutes(app: Elysia) {
     .post(
       "/api/embed",
       async ({ body, set, headers }) => {
+        const batchSize = Number(body.batchSize) || 1000;
+        const jobContext = await jobTracker.createJob("embed", {
+          model: body.model || "text-embedding-3-small",
+          batchSize,
+        });
+
         try {
+          await jobContext.updateProgress(0, 0, "Generating embeddings...");
+
           const cmdResult = await embedCommand({
             model: body.model || "text-embedding-3-small",
-            batchSize: Number(body.batchSize) || 1000,
+            batchSize,
           });
 
-          const errorHtml = handleCommandError(cmdResult, set);
-          if (errorHtml) return errorHtml;
+          // Check if cancelled during execution
+          if (jobContext.isCancelled()) {
+            return result("Embed was cancelled", "error");
+          }
+
+          if (!cmdResult.success) {
+            await jobTracker.completeJob(
+              jobContext.jobId,
+              false,
+              cmdResult.error || cmdResult.message,
+            );
+            const errorHtml = handleCommandError(cmdResult, set);
+            if (errorHtml) return errorHtml;
+          }
+
+          const tweetsEmbedded = cmdResult.data?.tweetsEmbedded || 0;
+          await jobContext.updateProgress(
+            tweetsEmbedded,
+            tweetsEmbedded,
+            `Embedded ${tweetsEmbedded} tweets`,
+          );
+          await jobTracker.completeJob(jobContext.jobId, true);
 
           return result(
             `<strong>Success!</strong><br>
-            Embedded ${cmdResult.data?.tweetsEmbedded || 0} tweets<br>
+            Embedded ${tweetsEmbedded} tweets<br>
             Model: ${cmdResult.data?.model || "N/A"}`,
             "success",
           );
         } catch (e: unknown) {
+          await jobTracker.completeJob(
+            jobContext.jobId,
+            false,
+            e instanceof Error ? e.message : "Unknown error",
+          );
           return handleApiError(e, set, headers?.accept);
         }
       },
@@ -317,6 +450,18 @@ export function registerApiRoutes(app: Elysia) {
 
     .get("/api/jobs", () => {
       return generateJobsHtml(jobTracker.getAllJobs());
+    })
+
+    .post("/api/jobs/:id/cancel", async ({ params, set }) => {
+      const { id } = params;
+      const cancelled = await jobTracker.cancelJob(id);
+
+      if (!cancelled) {
+        set.status = 404;
+        return result("Job not found or already completed", "error");
+      }
+
+      return result("Job cancelled", "success");
     })
 
     .get("/api/jobs/stream", ({ set }) => {

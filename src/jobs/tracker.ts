@@ -9,7 +9,7 @@ import type { Job as DbJob } from "../database/schema.js";
 export interface Job {
   id: string;
   type: "scrape" | "search" | "embed" | "discover";
-  status: "running" | "completed" | "failed";
+  status: "running" | "completed" | "failed" | "cancelled";
   startedAt: Date;
   completedAt?: Date;
   progress: {
@@ -19,6 +19,23 @@ export interface Job {
   };
   metadata?: Record<string, unknown>;
   errorMessage?: string;
+}
+
+/**
+ * Context passed to job execution functions
+ * Includes AbortController signal for cancellation support
+ */
+export interface JobContext {
+  jobId: string;
+  signal: AbortSignal;
+  /** Check if job has been cancelled */
+  isCancelled: () => boolean;
+  /** Update job progress */
+  updateProgress: (
+    current: number,
+    total: number,
+    message: string,
+  ) => Promise<void>;
 }
 
 // Convert DB job to API job format
@@ -41,6 +58,7 @@ function dbJobToJob(dbJob: DbJob): Job {
 
 class JobTracker {
   private jobs: Map<string, Job> = new Map();
+  private abortControllers: Map<string, AbortController> = new Map();
   private listeners: Set<(jobs: Job[]) => void> = new Set();
   private initialized = false;
   private initPromise: Promise<void> | null = null;
@@ -91,10 +109,11 @@ class JobTracker {
   async createJob(
     type: Job["type"],
     metadata?: Record<string, unknown>,
-  ): Promise<string> {
+  ): Promise<JobContext> {
     await this.initialize();
 
     const id = `${type}-${Date.now()}`;
+    const abortController = new AbortController();
     const job: Job = {
       id,
       type,
@@ -125,8 +144,17 @@ class JobTracker {
     }
 
     this.jobs.set(id, job);
+    this.abortControllers.set(id, abortController);
     this.notifyListeners();
-    return id;
+
+    // Return JobContext for the caller to use
+    return {
+      jobId: id,
+      signal: abortController.signal,
+      isCancelled: () => abortController.signal.aborted,
+      updateProgress: (current: number, total: number, message: string) =>
+        this.updateProgress(id, current, total, message),
+    };
   }
 
   async updateProgress(
@@ -161,6 +189,9 @@ class JobTracker {
       job.completedAt = new Date();
       job.errorMessage = errorMessage;
 
+      // Clean up AbortController
+      this.abortControllers.delete(id);
+
       // Persist to database
       try {
         await jobQueries.completeJob(id, success, errorMessage);
@@ -176,6 +207,62 @@ class JobTracker {
         this.notifyListeners();
       }, 30000);
     }
+  }
+
+  /**
+   * Cancel a running job
+   * Signals the AbortController and marks the job as cancelled
+   */
+  async cancelJob(id: string): Promise<boolean> {
+    const job = this.jobs.get(id);
+    const controller = this.abortControllers.get(id);
+
+    if (!job || job.status !== "running") {
+      return false;
+    }
+
+    // Signal cancellation
+    if (controller) {
+      controller.abort();
+      this.abortControllers.delete(id);
+    }
+
+    // Update job status
+    job.status = "cancelled";
+    job.completedAt = new Date();
+    job.progress.message = "Cancelled by user";
+
+    // Persist to database
+    try {
+      await jobQueries.completeJob(id, false, "Cancelled by user");
+    } catch (error) {
+      console.error("[jobs] Failed to persist job cancellation:", error);
+    }
+
+    this.notifyListeners();
+
+    // Remove from memory after 30 seconds
+    setTimeout(() => {
+      this.jobs.delete(id);
+      this.notifyListeners();
+    }, 30000);
+
+    return true;
+  }
+
+  /**
+   * Get a job by ID
+   */
+  getJob(id: string): Job | undefined {
+    return this.jobs.get(id);
+  }
+
+  /**
+   * Check if a job is cancelled
+   */
+  isJobCancelled(id: string): boolean {
+    const controller = this.abortControllers.get(id);
+    return controller?.signal.aborted ?? false;
   }
 
   getActiveJobs(): Job[] {

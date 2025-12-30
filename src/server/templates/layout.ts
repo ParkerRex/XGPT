@@ -252,6 +252,29 @@ const styles = `
   .job-failed {
     color: var(--error);
   }
+  .job-cancelled {
+    color: var(--text-muted);
+  }
+  .job-cancel-btn {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
+  }
+  .job-cancel-btn:hover {
+    background: var(--error);
+    border-color: var(--error);
+    color: white;
+  }
   @keyframes spin {
     to { transform: rotate(360deg); }
   }

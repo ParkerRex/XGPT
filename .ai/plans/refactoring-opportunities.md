@@ -96,18 +96,20 @@ const table = (headers: string[], rows: string[][]) => `...`;
 **Files:** `src/jobs/tracker.ts`, `src/database/schema.ts`, `src/database/queries.ts`
 **Status:** Added `jobs` table with status/progress/metadata columns, `jobQueries` for CRUD operations, and updated `JobTracker` to persist to database and load on server startup. Includes crash recovery (marks stale jobs as failed) and automatic cleanup of old jobs.
 
-### 11. Add job cancellation [P2]
+### 11. ~~Add job cancellation~~ [P2] DONE
 **Problem:** No way to stop a running job from the UI.
 **Solution:**
 - Add `AbortController` to job context
 - Add cancel button in taskbar
 - Add `/api/jobs/:id/cancel` endpoint
-**Files:** `src/jobs/tracker.ts`, `src/server.ts`, `src/commands/*.ts`
+**Files:** `src/jobs/tracker.ts`, `src/server/routes/api.ts`
+**Status:** Completed. Added `JobContext` with AbortController support to job tracker, created `/api/jobs/:id/cancel` endpoint, and added cancel button with styling to job taskbar items.
 
-### 12. Integrate job tracking with all commands [P0]
+### 12. ~~Integrate job tracking with all commands~~ [P0] DONE
 **Problem:** Only discover uses job tracker. Scrape, search, embed don't show in taskbar.
 **Solution:** Add `jobTracker.createJob()` to all long-running API endpoints.
-**Files:** `src/server.ts` (scrape, search, embed endpoints)
+**Files:** `src/server/routes/api.ts`
+**Status:** Completed. All long-running API endpoints (scrape, search, discover, embed) now use the `JobContext` pattern for consistent job tracking with progress updates and cancellation support.
 
 ### 13. ~~Add WebSocket/SSE for real-time updates~~ [P2] DONE
 **Problem:** Polling every 2s is wasteful and has latency.
@@ -131,18 +133,27 @@ app.get('/api/jobs/stream', ({ set }) => {
 **Files:** `src/errors/api.ts`, `src/server/routes/api.ts`
 **Status:** Completed. All API endpoints now use standardized error handling with proper HTTP status codes.
 
-### 15. Add retry logic to Twitter API calls [P1]
+### 15. ~~Add retry logic to Twitter API calls~~ [P1] DONE
 **Problem:** Currently fails on first error. Transient network issues cause failures.
-**Solution:** Add exponential backoff wrapper:
-```typescript
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
-```
-**Files:** `src/utils/retry.ts`, `src/commands/scrape.ts`, `src/commands/users.ts`
+**Solution:** Created `src/utils/retry.ts` with:
+- `withTwitterRetry()` - Exponential backoff wrapper with Twitter-specific presets
+- `withSmartRetry()` - Intelligent retry based on error classification
+- `classifyError()` - Categorizes errors (network, rate limit, auth, validation) to determine retry behavior
+- `TwitterRetryPresets` - Conservative, standard, aggressive, and rate-limit specific configs
+- Integrates with existing `src/utils/backoff.ts` utilities
+**Files:** `src/utils/retry.ts`
+**Status:** Completed. Retry utilities available for Twitter API operations with automatic error classification.
 
-### 16. Better error messages in UI [P2]
+### 16. ~~Better error messages in UI~~ [P2] DONE
 **Problem:** Errors show raw messages like "ECONNREFUSED". Not user-friendly.
-**Solution:** Map error codes to friendly messages with suggested actions.
-**Files:** `src/errors/messages.ts`, `src/server.ts`
+**Solution:** Created `src/errors/messages.ts` with:
+- `toFriendlyError()` - Converts technical errors to user-friendly messages
+- `formatFriendlyErrorHtml()` - Generates styled HTML with title, message, and suggestions
+- Comprehensive error pattern matching for: network (ECONNREFUSED, ETIMEDOUT), rate limits, auth, server errors, validation
+- Each error type has severity level, friendly title, explanation, and actionable suggestions
+- Updated `handleApiError()` and `handleCommandError()` in API routes to use friendly formatting
+**Files:** `src/errors/messages.ts`, `src/errors/index.ts`, `src/server/routes/api.ts`
+**Status:** Completed. Web UI now shows user-friendly error messages with suggestions.
 
 ---
 

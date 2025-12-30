@@ -152,6 +152,7 @@ export function userRow(user: {
  * Render job item for taskbar
  */
 export function jobItem(job: {
+  id: string;
   type: string;
   status: string;
   progress: { current: number; total: number; message: string };
@@ -165,6 +166,19 @@ export function jobItem(job: {
   let icon = '<div class="job-spinner"></div>';
   if (job.status === "completed") icon = '<span class="job-done">Done</span>';
   if (job.status === "failed") icon = '<span class="job-failed">Failed</span>';
+  if (job.status === "cancelled")
+    icon = '<span class="job-cancelled">Cancelled</span>';
+
+  // Cancel button only shown for running jobs
+  const cancelButton =
+    job.status === "running"
+      ? `<button
+          class="job-cancel-btn"
+          hx-post="/api/jobs/${job.id}/cancel"
+          hx-swap="none"
+          title="Cancel job"
+        >×</button>`
+      : "";
 
   return `
     <div class="job-item">
@@ -182,6 +196,7 @@ export function jobItem(job: {
           : ""
       }
       <span style="color: var(--text-muted)">${job.duration}</span>
+      ${cancelButton}
     </div>
   `;
 }

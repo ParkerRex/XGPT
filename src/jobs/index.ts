@@ -1,1 +1,1 @@
-export { jobTracker, type Job } from "./tracker.js";
+export { jobTracker, type Job, type JobContext } from "./tracker.js";

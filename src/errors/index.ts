@@ -43,5 +43,16 @@ export {
 
 export type { HttpStatusCode, ApiErrorResponse } from "./api.js";
 
+// Export user-friendly error messages
+export {
+  toFriendlyError,
+  formatFriendlyErrorHtml,
+  getSimpleFriendlyMessage,
+  isCriticalError,
+  isInfoError,
+} from "./messages.js";
+
+export type { FriendlyError } from "./messages.js";
+
 // Re-export for convenience
 export type { CommandResult } from "../types/common.js";

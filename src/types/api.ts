@@ -148,7 +148,7 @@ export type InteractiveCommandResult =
 // ============================================================================
 
 export type JobType = "scrape" | "search" | "embed" | "discover";
-export type JobStatus = "running" | "completed" | "failed";
+export type JobStatus = "running" | "completed" | "failed" | "cancelled";
 
 export interface JobProgress {
   current: number;
