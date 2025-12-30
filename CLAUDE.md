@@ -22,6 +22,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **DB Stats**: `bun run src/cli.ts db --stats`
 - **Database migrations**: Uses Drizzle Kit with schema in `src/database/schema.ts`
 
+### Web UI
+- **Start server**: `bun run src/cli.ts serve` (default port 3000)
+- **Custom port**: `bun run src/cli.ts serve --port 8080`
+
 ## Architecture Overview
 
 ### CLI Framework
@@ -54,10 +58,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Context-aware error tracking with metadata
 - **Prompts**: `src/prompts/` - Interactive CLI prompts for user input
 
+### Web UI
+- **Server**: `src/server.ts` - Elysia-based web server with HTMX frontend
+- **Routes**: Dashboard, Scrape, Search, Ask, Config pages
+- **API**: REST endpoints at `/api/*` that call existing command functions
+- **Frontend**: Inline HTML/CSS with HTMX for interactivity (no JS framework)
+
 ### Technology Stack
 - **Runtime**: Bun (not Node.js) - see `.cursor/rules/use-bun-instead-of-node-vite-npm-pnpm.mdc`
 - **Database**: SQLite with Drizzle ORM
 - **CLI**: Commander.js with @inquirer/prompts
+- **Web**: Elysia with HTMX
 - **AI**: OpenAI API for embeddings and chat completion
 - **Scraping**: @the-convocation/twitter-scraper
 
@@ -109,6 +120,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Key File Locations
 - **CLI Entry**: `src/cli.ts`
+- **Web Server**: `src/server.ts`
 - **Database Schema**: `src/database/schema.ts`
 - **Database Queries**: `src/database/queries.ts`
 - **Main Commands**: `src/commands/`

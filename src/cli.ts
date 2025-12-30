@@ -30,6 +30,7 @@ import {
 } from "./database/optimization.js";
 import { runBenchmarkCLI } from "../benchmarks/sqlite-performance.js";
 import { errorHandler } from "./errors/index.js";
+import { createServer } from "./server.js";
 
 // Read package.json for version info
 const packagePath = join(import.meta.dir, "..", "package.json");
@@ -56,6 +57,7 @@ Examples:
   $ xgpt scrape elonmusk          # Direct scrape tweets from @elonmusk
   $ xgpt embed                    # Generate embeddings for scraped tweets
   $ xgpt ask "What about AI?"     # Ask questions about the tweets
+  $ xgpt serve                    # Start the web UI at localhost:3000
   $ xgpt db --stats               # Show database statistics
   $ xgpt config list              # Show all configuration settings
   $ xgpt config set scraping.rateLimitProfile moderate  # Set rate limit profile
@@ -341,6 +343,19 @@ program
       size: options.size as "small" | "medium" | "large",
       iterations: parseInt(options.iterations),
     });
+  });
+
+// Serve command - web UI
+program
+  .command("serve")
+  .description("Start the web UI server")
+  .option("--port <number>", "Port to run the server on", "3000")
+  .action(async (options) => {
+    await ensureDatabaseReady();
+    const port = parseInt(options.port);
+    createServer(port);
+    console.log(`[info] Web UI available at http://localhost:${port}`);
+    console.log("[info] Press Ctrl+C to stop the server");
   });
 
 // Configuration commands
