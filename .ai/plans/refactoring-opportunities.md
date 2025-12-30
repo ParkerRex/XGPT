@@ -13,12 +13,13 @@ Comprehensive list of improvements and refactoring opportunities for the XGPT co
 
 ## Architecture & Structure
 
-### 1. Consolidate duplicate code in server.ts [P1]
+### 1. ~~Consolidate duplicate code in server.ts~~ [P1] DONE
 **Problem:** The `formatNumber` helper is defined 3 times (dashboard, discover API, jobs API).
 **Solution:** Extract to `src/utils/format.ts` and import everywhere.
 **Files:** `src/server.ts`, `src/utils/format.ts`
+**Status:** Completed in commit a3e4669. Created `src/utils/format.ts` with `formatNumber()` and `formatDuration()`.
 
-### 2. Split server.ts into modules [P0]
+### 2. ~~Split server.ts into modules~~ [P0] DONE
 **Problem:** At 900+ lines, server.ts is doing too much - routes, templates, API handlers all in one file.
 **Solution:** Split into:
 ```
@@ -34,8 +35,9 @@ src/server/
     └── auth.ts           # Future auth middleware
 ```
 **Files:** `src/server.ts`
+**Status:** Completed in commit a3e4669. Original 995-line file now 18-line re-export.
 
-### 3. Create a proper UI component system [P2]
+### 3. ~~Create a proper UI component system~~ [P2] DONE
 **Problem:** HTML templates are inline strings with lots of duplication (cards, forms, tables).
 **Solution:** Create template functions:
 ```typescript
@@ -43,11 +45,13 @@ const card = (title: string, content: string) => `<div class="card"><h2>${title}
 const table = (headers: string[], rows: string[][]) => `...`;
 ```
 **Files:** `src/server/templates/components.ts`
+**Status:** Completed in commit a3e4669. Created card, statCard, result, formGroup, table, tweetItem, profileItem, userRow, jobItem components.
 
-### 4. Unify command result handling [P1]
+### 4. ~~Unify command result handling~~ [P1] DONE
 **Problem:** Each command handles success/error slightly differently. CLI and server have different error handling.
 **Solution:** Create `CommandRunner` wrapper that standardizes execution, logging, and error handling.
 **Files:** `src/commands/*.ts`, new `src/commands/runner.ts`
+**Status:** Completed in commit a3e4669. Created runCommand, createCommand, runBatch, runWithRetry utilities.
 
 ---
 

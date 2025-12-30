@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Database migrations**: Uses Drizzle Kit with schema in `src/database/schema.ts`
 
 ### Web UI
-- **Start server**: `bun run src/cli.ts serve` (default port 3000)
+- **Start server**: `bun run src/cli.ts serve` (default port 3001)
 - **Custom port**: `bun run src/cli.ts serve --port 8080`
 
 ## Architecture Overview
@@ -33,6 +33,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Commands**: Located in `src/commands/` - modular command structure
   - `interactive.ts` - Guided interactive mode for new users
   - `scrape.ts` - Tweet scraping with database integration
+  - `search.ts` - Topic-based tweet search
+  - `discover.ts` - User discovery by bio/keywords
   - `embed.ts` - Vector embedding generation
   - `ask.ts` - AI-powered Q&A using semantic search
   - `config.ts` - Configuration management system
@@ -59,9 +61,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Prompts**: `src/prompts/` - Interactive CLI prompts for user input
 
 ### Web UI
-- **Server**: `src/server.ts` - Elysia-based web server with HTMX frontend
-- **Routes**: Dashboard, Scrape, Search, Ask, Config pages
-- **API**: REST endpoints at `/api/*` that call existing command functions
+- **Server**: `src/server.ts` - Entry point (re-exports from modular structure)
+- **Modular Structure**: `src/server/`
+  - `index.ts` - Main server setup and configuration
+  - `routes/pages.ts` - HTML page routes (Dashboard, Scrape, Search, Discover, Ask, Config)
+  - `routes/api.ts` - REST API endpoints
+  - `templates/layout.ts` - Base HTML layout with CSS
+  - `templates/components.ts` - Reusable UI components (card, table, result, etc.)
 - **Frontend**: Inline HTML/CSS with HTMX for interactivity (no JS framework)
 
 ### Technology Stack
@@ -92,6 +98,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Export command functions from `src/commands/index.ts`
 - Register new commands in `src/cli.ts`
 - Use interactive prompts from `src/prompts/` for user input
+- Use `CommandRunner` from `src/commands/runner.ts` for standardized execution:
+  ```typescript
+  import { runCommand } from './runner.js';
+
+  const result = await runCommand(
+    () => myCommand(options),
+    { name: 'my-command', trackAsJob: true }
+  );
+  ```
 
 ### Error Handling
 - Use the centralized error system from `src/errors/`
@@ -120,12 +135,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Key File Locations
 - **CLI Entry**: `src/cli.ts`
-- **Web Server**: `src/server.ts`
+- **Web Server**: `src/server.ts` (entry), `src/server/` (modular implementation)
+- **Server Routes**: `src/server/routes/` (pages.ts, api.ts)
+- **Server Templates**: `src/server/templates/` (layout.ts, components.ts)
 - **Database Schema**: `src/database/schema.ts`
 - **Database Queries**: `src/database/queries.ts`
 - **Main Commands**: `src/commands/`
+- **Command Runner**: `src/commands/runner.ts`
 - **Configuration**: `src/config/`
 - **Error Handling**: `src/errors/`
 - **Rate Limiting**: `src/rateLimit/`
+- **Utilities**: `src/utils/` (format.ts, dateUtils.ts, math.ts, etc.)
 - **Type Definitions**: `src/types/`
 - **Tests**: `tests/` directory with unit, integration, e2e tests
