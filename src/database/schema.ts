@@ -119,6 +119,112 @@ export const scrapeSessionsRelations = relations(scrapeSessions, ({ one }) => ({
   }),
 }));
 
+// Search topics table - saved search configurations
+export const searchTopics = sqliteTable("search_topics", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  variants: text("variants", { mode: "json" }).notNull().$type<string[]>(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  lastSearched: integer("last_searched", { mode: "timestamp" }),
+  totalTweetsFound: integer("total_tweets_found").default(0),
+});
+
+// Search sessions table - individual search runs
+export const searchSessions = sqliteTable("search_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  topicId: integer("topic_id").references(() => searchTopics.id),
+  scrapeSessionId: integer("scrape_session_id").references(
+    () => scrapeSessions.id,
+  ),
+
+  // Configuration
+  query: text("query").notNull(),
+  variants: text("variants", { mode: "json" }).notNull().$type<string[]>(),
+  searchMode: text("search_mode").notNull().default("Latest"),
+  maxTweets: integer("max_tweets").notNull(),
+  dateStart: integer("date_start", { mode: "timestamp" }),
+  dateEnd: integer("date_end", { mode: "timestamp" }),
+
+  // Resume support
+  cursor: text("cursor"),
+  lastTweetId: text("last_tweet_id"),
+
+  // Results
+  tweetsCollected: integer("tweets_collected").default(0),
+  totalProcessed: integer("total_processed").default(0),
+  dateFiltered: integer("date_filtered").default(0),
+  duplicatesSkipped: integer("duplicates_skipped").default(0),
+  usersCreated: integer("users_created").default(0),
+
+  // Status
+  status: text("status").notNull().default("pending"),
+  startedAt: integer("started_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  completedAt: integer("completed_at", { mode: "timestamp" }),
+  errorMessage: text("error_message"),
+  embeddingsGenerated: integer("embeddings_generated", {
+    mode: "boolean",
+  }).default(false),
+});
+
+// Tweet search origins table - links tweets to searches (first origin only)
+export const tweetSearchOrigins = sqliteTable("tweet_search_origins", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tweetId: text("tweet_id")
+    .notNull()
+    .unique()
+    .references(() => tweets.id, { onDelete: "cascade" }),
+  searchSessionId: integer("search_session_id")
+    .notNull()
+    .references(() => searchSessions.id),
+  matchedVariant: text("matched_variant").notNull(),
+  foundAt: integer("found_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+// Search topics relations
+export const searchTopicsRelations = relations(searchTopics, ({ many }) => ({
+  searchSessions: many(searchSessions),
+}));
+
+// Search sessions relations
+export const searchSessionsRelations = relations(
+  searchSessions,
+  ({ one, many }) => ({
+    topic: one(searchTopics, {
+      fields: [searchSessions.topicId],
+      references: [searchTopics.id],
+    }),
+    scrapeSession: one(scrapeSessions, {
+      fields: [searchSessions.scrapeSessionId],
+      references: [scrapeSessions.id],
+    }),
+    tweetOrigins: many(tweetSearchOrigins),
+  }),
+);
+
+// Tweet search origins relations
+export const tweetSearchOriginsRelations = relations(
+  tweetSearchOrigins,
+  ({ one }) => ({
+    tweet: one(tweets, {
+      fields: [tweetSearchOrigins.tweetId],
+      references: [tweets.id],
+    }),
+    searchSession: one(searchSessions, {
+      fields: [tweetSearchOrigins.searchSessionId],
+      references: [searchSessions.id],
+    }),
+  }),
+);
+
 // TypeScript types derived from schema
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -131,3 +237,12 @@ export type NewEmbedding = typeof embeddings.$inferInsert;
 
 export type ScrapeSession = typeof scrapeSessions.$inferSelect;
 export type NewScrapeSession = typeof scrapeSessions.$inferInsert;
+
+export type SearchTopic = typeof searchTopics.$inferSelect;
+export type NewSearchTopic = typeof searchTopics.$inferInsert;
+
+export type SearchSession = typeof searchSessions.$inferSelect;
+export type NewSearchSession = typeof searchSessions.$inferInsert;
+
+export type TweetSearchOrigin = typeof tweetSearchOrigins.$inferSelect;
+export type NewTweetSearchOrigin = typeof tweetSearchOrigins.$inferInsert;

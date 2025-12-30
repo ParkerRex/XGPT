@@ -51,3 +51,28 @@ export interface CommandResult {
   data?: any;
   error?: string;
 }
+
+export interface SearchOptions {
+  query?: string;
+  name?: string;
+  maxTweets: number;
+  days?: number;
+  since?: string;
+  until?: string;
+  mode: "latest" | "top";
+  embed: boolean;
+  dryRun: boolean;
+  json: boolean;
+  resume?: number;
+  cleanup?: boolean;
+  olderThan?: string;
+}
+
+export interface SearchStats {
+  tweetsCollected: number;
+  totalProcessed: number;
+  duplicatesSkipped: number;
+  usersCreated: number;
+  embeddingsGenerated?: boolean;
+  sessionId?: number;
+}

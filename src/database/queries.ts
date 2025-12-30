@@ -1,6 +1,14 @@
-import { eq, desc, and, gte, lte, sql, count } from "drizzle-orm";
+import { eq, desc, and, gte, lte, lt, sql, count } from "drizzle-orm";
 import { db } from "./connection.js";
-import { users, tweets, embeddings, scrapeSessions } from "./schema.js";
+import {
+  users,
+  tweets,
+  embeddings,
+  scrapeSessions,
+  searchTopics,
+  searchSessions,
+  tweetSearchOrigins,
+} from "./schema.js";
 import type {
   User,
   Tweet,
@@ -9,6 +17,10 @@ import type {
   NewEmbedding,
   ScrapeSession,
   NewScrapeSession,
+  SearchTopic,
+  SearchSession,
+  NewSearchSession,
+  NewTweetSearchOrigin,
 } from "./schema.js";
 
 // User operations
@@ -336,5 +348,216 @@ export const statsQueries = {
       sessionCount: sessions.length,
       lastSession: sessions[0] || null,
     };
+  },
+};
+
+// Search topic operations
+export const searchTopicQueries = {
+  // Create a new topic
+  async createTopic(name: string, variants: string[]): Promise<SearchTopic> {
+    const existing = await this.getTopicByName(name);
+    if (existing) {
+      throw new Error(
+        `Topic "${name}" already exists. Use --name to search with it, or choose a different name.`,
+      );
+    }
+
+    const [topic] = await db
+      .insert(searchTopics)
+      .values({
+        name,
+        variants,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return topic!;
+  },
+
+  // Get topic by name
+  async getTopicByName(name: string): Promise<SearchTopic | null> {
+    return (
+      (await db
+        .select()
+        .from(searchTopics)
+        .where(eq(searchTopics.name, name))
+        .get()) || null
+    );
+  },
+
+  // Get all topics
+  async getAllTopics(): Promise<SearchTopic[]> {
+    return await db
+      .select()
+      .from(searchTopics)
+      .orderBy(desc(searchTopics.lastSearched));
+  },
+
+  // Update topic stats after a search
+  async updateTopicStats(id: number, tweetsFound: number): Promise<void> {
+    const topic = await db
+      .select()
+      .from(searchTopics)
+      .where(eq(searchTopics.id, id))
+      .get();
+
+    if (topic) {
+      await db
+        .update(searchTopics)
+        .set({
+          lastSearched: new Date(),
+          totalTweetsFound: (topic.totalTweetsFound || 0) + tweetsFound,
+          updatedAt: new Date(),
+        })
+        .where(eq(searchTopics.id, id));
+    }
+  },
+};
+
+// Search session operations
+export const searchSessionQueries = {
+  // Create search session
+  async createSession(sessionData: NewSearchSession): Promise<SearchSession> {
+    const [session] = await db
+      .insert(searchSessions)
+      .values({
+        ...sessionData,
+        startedAt: new Date(),
+      })
+      .returning();
+    return session!;
+  },
+
+  // Update session
+  async updateSession(
+    id: number,
+    updates: Partial<SearchSession>,
+  ): Promise<void> {
+    await db
+      .update(searchSessions)
+      .set(updates)
+      .where(eq(searchSessions.id, id));
+  },
+
+  // Get session by ID
+  async getSessionById(id: number): Promise<SearchSession | null> {
+    return (
+      (await db
+        .select()
+        .from(searchSessions)
+        .where(eq(searchSessions.id, id))
+        .get()) || null
+    );
+  },
+
+  // Get paused/interrupted sessions
+  async getPausedSessions(): Promise<SearchSession[]> {
+    return await db
+      .select()
+      .from(searchSessions)
+      .where(eq(searchSessions.status, "paused"))
+      .orderBy(desc(searchSessions.startedAt));
+  },
+
+  // Clean up old sessions
+  async cleanupOldSessions(olderThanDays: number): Promise<number> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+    const result = await db
+      .delete(searchSessions)
+      .where(lt(searchSessions.startedAt, cutoffDate));
+
+    return result.changes || 0;
+  },
+
+  // Save cursor for resume support
+  async saveCursor(
+    sessionId: number,
+    cursor: string,
+    lastTweetId: string,
+  ): Promise<void> {
+    await db
+      .update(searchSessions)
+      .set({
+        cursor,
+        lastTweetId,
+      })
+      .where(eq(searchSessions.id, sessionId));
+  },
+
+  // Get cursor for resume
+  async getCursor(
+    sessionId: number,
+  ): Promise<{ cursor: string; lastTweetId: string } | null> {
+    const session = await db
+      .select({
+        cursor: searchSessions.cursor,
+        lastTweetId: searchSessions.lastTweetId,
+      })
+      .from(searchSessions)
+      .where(eq(searchSessions.id, sessionId))
+      .get();
+
+    if (session?.cursor && session?.lastTweetId) {
+      return {
+        cursor: session.cursor,
+        lastTweetId: session.lastTweetId,
+      };
+    }
+    return null;
+  },
+};
+
+// Tweet search origin operations
+export const tweetOriginQueries = {
+  // Record tweet origin (first-origin-only via UNIQUE constraint)
+  async recordTweetOrigin(data: NewTweetSearchOrigin): Promise<boolean> {
+    try {
+      await db.insert(tweetSearchOrigins).values({
+        ...data,
+        foundAt: new Date(),
+      });
+      return true;
+    } catch (e) {
+      // If it's a UNIQUE constraint violation, the origin already exists
+      if (
+        e instanceof Error &&
+        e.message.includes("UNIQUE constraint failed")
+      ) {
+        return false;
+      }
+      throw e;
+    }
+  },
+
+  // Get tweet IDs by session
+  async getTweetsBySession(sessionId: number): Promise<string[]> {
+    const results = await db
+      .select({ tweetId: tweetSearchOrigins.tweetId })
+      .from(tweetSearchOrigins)
+      .where(eq(tweetSearchOrigins.searchSessionId, sessionId));
+
+    return results.map((r) => r.tweetId);
+  },
+
+  // Get variant breakdown for a session
+  async getVariantBreakdown(
+    sessionId: number,
+  ): Promise<Record<string, number>> {
+    const results = await db
+      .select({
+        variant: tweetSearchOrigins.matchedVariant,
+        count: count(),
+      })
+      .from(tweetSearchOrigins)
+      .where(eq(tweetSearchOrigins.searchSessionId, sessionId))
+      .groupBy(tweetSearchOrigins.matchedVariant);
+
+    const breakdown: Record<string, number> = {};
+    for (const row of results) {
+      breakdown[row.variant] = row.count;
+    }
+    return breakdown;
   },
 };
