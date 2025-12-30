@@ -13,15 +13,15 @@ export {
   RateLimitError,
   DatabaseError,
   ValidationError,
-  NetworkError
-} from './types.js';
+  NetworkError,
+} from "./types.js";
 
 // Export TypeScript interfaces as types
-export type { 
+export type {
   ErrorContext,
   RecoveryAction,
-  XGPTErrorDetails 
-} from './types.js';
+  XGPTErrorDetails,
+} from "./types.js";
 
 // Export error handler and utilities
 export {
@@ -29,8 +29,19 @@ export {
   errorHandler,
   handleCommandError,
   createError,
-  handleWarning
-} from './handler.js';
+  handleWarning,
+} from "./handler.js";
+
+// Export API error handling
+export {
+  ApiError,
+  ApiErrors,
+  HttpStatus,
+  toApiError,
+  createErrorResponse,
+} from "./api.js";
+
+export type { HttpStatusCode, ApiErrorResponse } from "./api.js";
 
 // Re-export for convenience
-export type { CommandResult } from '../types/common.js';
+export type { CommandResult } from "../types/common.js";

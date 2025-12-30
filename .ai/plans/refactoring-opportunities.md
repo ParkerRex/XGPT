@@ -108,7 +108,7 @@ const table = (headers: string[], rows: string[][]) => `...`;
 **Solution:** Add `jobTracker.createJob()` to all long-running API endpoints.
 **Files:** `src/server.ts` (scrape, search, embed endpoints)
 
-### 13. Add WebSocket/SSE for real-time updates [P2]
+### 13. ~~Add WebSocket/SSE for real-time updates~~ [P2] DONE
 **Problem:** Polling every 2s is wasteful and has latency.
 **Solution:** Use Server-Sent Events (simpler than WebSocket):
 ```typescript
@@ -117,25 +117,18 @@ app.get('/api/jobs/stream', ({ set }) => {
   // Stream job updates
 });
 ```
-**Files:** `src/server.ts`, `src/jobs/tracker.ts`
+**Files:** `src/server/routes/api.ts`, `src/server/templates/layout.ts`
+**Status:** Completed. Added `/api/jobs/stream` SSE endpoint that streams job updates in real-time. Frontend now uses HTMX SSE extension (`sse-connect`, `sse-swap`) instead of polling. Includes heartbeat every 30s to keep connection alive.
 
 ---
 
 ## Error Handling
 
-### 14. Standardize error responses [P1]
+### 14. ~~Standardize error responses~~ [P1] DONE
 **Problem:** API endpoints return different error formats. Some return HTML, some return objects.
-**Solution:** Create `ApiError` class:
-```typescript
-class ApiError extends Error {
-  constructor(
-    public code: string,
-    public message: string,
-    public statusCode: number = 400
-  ) {}
-}
-```
-**Files:** `src/errors/api.ts`, `src/server.ts`
+**Solution:** Created `ApiError` class with HTTP status codes, factory methods (`ApiErrors.badRequest()`, etc.), and `toApiError()` converter. Added `handleApiError()` and `handleCommandError()` helpers to API routes for consistent error handling.
+**Files:** `src/errors/api.ts`, `src/server/routes/api.ts`
+**Status:** Completed. All API endpoints now use standardized error handling with proper HTTP status codes.
 
 ### 15. Add retry logic to Twitter API calls [P1]
 **Problem:** Currently fails on first error. Transient network issues cause failures.
