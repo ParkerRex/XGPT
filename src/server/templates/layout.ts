@@ -34,16 +34,34 @@ const styles = `
     align-items: center;
   }
   h1 { font-size: 1.25rem; font-weight: 600; }
-  nav { display: flex; gap: 0.5rem; }
+  nav { display: flex; align-items: center; gap: 0.25rem; }
   nav a {
     color: var(--text-muted);
     text-decoration: none;
     padding: 0.375rem 0.75rem;
-    transition: all 0.2s;
+    transition: all 0.1s;
   }
   nav a:hover, nav a.active {
     background: var(--surface);
     color: var(--text);
+  }
+  .nav-key {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: all 0.1s;
+  }
+  .nav-key.pressed {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    transform: scale(0.9);
   }
   .card {
     background: var(--surface);
@@ -294,6 +312,43 @@ const navItems = [
 /**
  * Render the base HTML layout with navigation and content
  */
+const navScript = `
+  (function() {
+    const routes = ${JSON.stringify(navItems.map((item) => item.href))};
+    const currentPath = window.location.pathname;
+    const currentIndex = routes.findIndex(r => r === currentPath || (r !== '/' && currentPath.startsWith(r)));
+
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+
+      const key = e.key.toLowerCase();
+      if (key !== 'q' && key !== 'e') return;
+
+      const keyEl = document.getElementById('nav-key-' + key);
+      if (keyEl) keyEl.classList.add('pressed');
+
+      if (currentIndex === -1) return;
+
+      let nextIndex;
+      if (key === 'q') {
+        nextIndex = (currentIndex - 1 + routes.length) % routes.length;
+      } else {
+        nextIndex = (currentIndex + 1) % routes.length;
+      }
+
+      window.location.href = routes[nextIndex];
+    });
+
+    document.addEventListener('keyup', function(e) {
+      const key = e.key.toLowerCase();
+      if (key === 'q' || key === 'e') {
+        const keyEl = document.getElementById('nav-key-' + key);
+        if (keyEl) keyEl.classList.remove('pressed');
+      }
+    });
+  })();
+`;
+
 export function layout(title: string, content: string): string {
   const navHtml = navItems
     .map(
@@ -315,18 +370,24 @@ export function layout(title: string, content: string): string {
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
   <script src="https://unpkg.com/htmx-ext-json-enc@2.0.1/json-enc.js"></script>
+  <script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
   <style>${styles}</style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1><a href="/" style="color: inherit; text-decoration: none;">XGPT</a></h1>
-      <nav>${navHtml}</nav>
+      <nav>
+        <span id="nav-key-q" class="nav-key">Q</span>
+        ${navHtml}
+        <span id="nav-key-e" class="nav-key">E</span>
+      </nav>
     </header>
     <main>${content}</main>
   </div>
-  <div id="taskbar" class="taskbar" hx-get="/api/jobs" hx-trigger="load, every 2s" hx-swap="innerHTML">
+  <div id="taskbar" class="taskbar" hx-ext="sse" sse-connect="/api/jobs/stream" sse-swap="jobs">
   </div>
+  <script>${navScript}</script>
 </body>
 </html>
 `;
