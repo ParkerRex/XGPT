@@ -5,16 +5,18 @@
 The easiest way to use XGPT with a visual interface:
 
 ```bash
-xgpt serve                    # Start at http://localhost:3000
+bun dev                       # Start at http://localhost:3001
 xgpt serve --port 8080        # Custom port
 ```
 
 The web UI provides:
-- **Dashboard** - View stats (users, tweets, embeddings, sessions) and quick actions
+- **Dashboard** - View stats, users table with bios, and quick actions
 - **Scrape** - Enter username, set options, start scraping
 - **Search** - Topic-based search with date filters and auto-embed option
+- **Discover** - Find Twitter profiles by bio, name, or keywords
 - **Ask** - Ask questions, see AI answers with relevant tweets and similarity scores
 - **Config** - Edit all settings inline with auto-save
+- **Job Taskbar** - Floating status bar shows active jobs with progress and duration
 
 ## Interactive Mode
 
@@ -78,6 +80,44 @@ RELEVANT TWEETS:
 1. [95.2%] @ID_AA_Carmack (2024-01-15): "Translucent UI is almost always a bad idea..."
 2. [87.3%] @ID_AA_Carmack (2024-01-14): "Clear interfaces work better than fancy ones"
 ```
+
+### Topic Search
+
+Search for tweets by topic using Twitter's search API:
+
+```bash
+# Find AI startup discussions from last 7 days
+xgpt search "building in public, indie hacker, shipped" --days 7
+
+# Track trending tech topics
+xgpt search "AGI, GPT-5, foundation models" --name "AI Trends" --max 1000
+
+# Preview query without executing
+xgpt search "rust lang, rustacean" --dry-run
+
+# Search and auto-embed for semantic queries
+xgpt search "YC demo day, fundraising" --mode top --embed
+
+# Resume interrupted search
+xgpt search --resume 42
+```
+
+### User Discovery
+
+Find Twitter profiles by bio, name, or keywords:
+
+```bash
+# Find Google engineers
+xgpt users discover "google engineer" --max 20 --save
+
+# Find AI researchers
+xgpt users discover "AI researcher" --max 50
+
+# Output as JSON
+xgpt users discover "indie hacker" --json
+```
+
+Discovered profiles can be saved to the database with `--save`, storing bio, location, follower counts, and verification status.
 
 ## Configuration
 

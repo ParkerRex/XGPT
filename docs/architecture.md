@@ -12,8 +12,11 @@
 xgpt/
 ├── src/
 │   ├── cli.ts                 # Main CLI entry point
+│   ├── server.ts              # Web UI server (Elysia + HTMX)
 │   ├── commands/
 │   │   ├── scrape.ts          # Tweet scraping
+│   │   ├── search.ts          # Topic-based tweet search
+│   │   ├── users.ts           # User discovery by bio/keywords
 │   │   ├── embed.ts           # Embedding generation
 │   │   ├── ask.ts             # Question answering
 │   │   ├── config.ts          # Configuration management
@@ -25,6 +28,9 @@ xgpt/
 │   │   ├── queries.ts         # Database queries
 │   │   ├── migrate-json.ts    # JSON migration
 │   │   └── optimization.ts    # Performance tools
+│   ├── jobs/
+│   │   ├── tracker.ts         # Job tracking for web UI taskbar
+│   │   └── index.ts           # Exports
 │   ├── config/
 │   │   ├── manager.ts         # Config persistence
 │   │   └── schema.ts          # Config schema
@@ -50,6 +56,8 @@ xgpt/
 │       ├── dateUtils.ts       # Date utilities
 │       ├── array.ts           # Array chunking
 │       └── math.ts            # Cosine similarity
+├── scripts/
+│   └── patch-twitter-scraper.ts  # Postinstall patch for profile search
 ├── data/
 │   └── xgpt.db                # SQLite database
 └── tests/
@@ -63,6 +71,7 @@ xgpt/
 - **Runtime**: Bun
 - **Database**: SQLite + Drizzle ORM
 - **CLI**: Commander.js + @inquirer/prompts
+- **Web UI**: Elysia + HTMX
 - **AI**: OpenAI API (embeddings + chat)
 - **Scraping**: @the-convocation/twitter-scraper (v0.21.0)
 
