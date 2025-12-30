@@ -16,11 +16,48 @@ bun run src/cli.ts interactive
 ```bash
 xgpt interactive              # Guided setup
 xgpt scrape <username>        # Scrape tweets
+xgpt search "terms"           # Search tweets by topic/phrase
 xgpt embed                    # Generate embeddings
 xgpt ask "question"           # Semantic search + GPT answer
 xgpt db --stats               # Database stats
 xgpt config list              # Show config
 ```
+
+### Search Command
+
+Find tweets by topic using Twitter's search API:
+
+```bash
+# Find AI startup discussions from last 7 days
+xgpt search "building in public, indie hacker, shipped" --days 7
+
+# Track trending tech topics
+xgpt search "AGI, GPT-5, foundation models" --name "AI Trends" --max 1000
+
+# Preview query without executing
+xgpt search "rust lang, rustacean" --dry-run
+
+# Search and auto-embed for semantic queries
+xgpt search "YC demo day, fundraising" --mode top --embed
+
+# Resume interrupted search
+xgpt search --resume 42
+```
+
+## Twitter Account Safety
+
+Search and scrape operations count against your account's rate limits. Excessive usage may trigger Twitter's anti-bot detection.
+
+**Best Practices:**
+- Start with `--max 100` to test queries
+- Use `--dry-run` to preview before executing
+- Avoid running multiple concurrent searches
+- Space out large searches (1000+ tweets) by several hours
+
+**Rate Limit Handling:**
+- Searches automatically wait and retry when rate limited
+- Use `--resume <session-id>` if you need to restart
+- Wait at least 15 minutes before retrying manually
 
 ## How It Works
 

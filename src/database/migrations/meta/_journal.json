@@ -15,6 +15,13 @@
       "when": 1767056949380,
       "tag": "0001_milky_spyke",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1767057494669,
+      "tag": "0002_harsh_viper",
+      "breakpoints": true
     }
   ]
 }

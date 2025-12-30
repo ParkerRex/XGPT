@@ -192,6 +192,36 @@ export const tweetQueries = {
       .leftJoin(embeddings, eq(tweets.id, embeddings.tweetId))
       .where(whereCondition);
   },
+
+  // Get tweets without embeddings for a specific search session
+  async getTweetsWithoutEmbeddingsBySession(
+    searchSessionId: number,
+  ): Promise<Tweet[]> {
+    return await db
+      .select({
+        id: tweets.id,
+        text: tweets.text,
+        userId: tweets.userId,
+        username: tweets.username,
+        createdAt: tweets.createdAt,
+        scrapedAt: tweets.scrapedAt,
+        isRetweet: tweets.isRetweet,
+        isReply: tweets.isReply,
+        likes: tweets.likes,
+        retweets: tweets.retweets,
+        replies: tweets.replies,
+        metadata: tweets.metadata,
+      })
+      .from(tweets)
+      .innerJoin(tweetSearchOrigins, eq(tweets.id, tweetSearchOrigins.tweetId))
+      .leftJoin(embeddings, eq(tweets.id, embeddings.tweetId))
+      .where(
+        and(
+          eq(tweetSearchOrigins.searchSessionId, searchSessionId),
+          sql`${embeddings.id} IS NULL`,
+        ),
+      );
+  },
 };
 
 // Embedding operations

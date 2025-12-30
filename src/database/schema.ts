@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // Users table - tracks scraped Twitter users
@@ -174,20 +174,27 @@ export const searchSessions = sqliteTable("search_sessions", {
 });
 
 // Tweet search origins table - links tweets to searches (first origin only)
-export const tweetSearchOrigins = sqliteTable("tweet_search_origins", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  tweetId: text("tweet_id")
-    .notNull()
-    .unique()
-    .references(() => tweets.id, { onDelete: "cascade" }),
-  searchSessionId: integer("search_session_id")
-    .notNull()
-    .references(() => searchSessions.id),
-  matchedVariant: text("matched_variant").notNull(),
-  foundAt: integer("found_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const tweetSearchOrigins = sqliteTable(
+  "tweet_search_origins",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    tweetId: text("tweet_id")
+      .notNull()
+      .unique()
+      .references(() => tweets.id, { onDelete: "cascade" }),
+    searchSessionId: integer("search_session_id")
+      .notNull()
+      .references(() => searchSessions.id),
+    matchedVariant: text("matched_variant").notNull(),
+    foundAt: integer("found_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => ({
+    sessionIdx: index("idx_origins_session").on(table.searchSessionId),
+    variantIdx: index("idx_origins_variant").on(table.matchedVariant),
+  }),
+);
 
 // Search topics relations
 export const searchTopicsRelations = relations(searchTopics, ({ many }) => ({

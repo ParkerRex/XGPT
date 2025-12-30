@@ -32,10 +32,17 @@ export async function embedCommand(
     const {
       model = userConfig.embedding.model,
       batchSize = userConfig.embedding.batchSize,
+      searchSessionId,
     } = options;
 
     console.log(`[embed] Starting embedding generation...`);
-    console.log(`[stats] Model: ${model}, Batch size: ${batchSize}`);
+    if (searchSessionId) {
+      console.log(
+        `[stats] Model: ${model}, Batch size: ${batchSize}, Session: ${searchSessionId}`,
+      );
+    } else {
+      console.log(`[stats] Model: ${model}, Batch size: ${batchSize}`);
+    }
 
     // Check for OpenAI API key (from config or environment)
     const apiKey = userConfig.api.openaiKey ?? process.env.OPENAI_KEY;
@@ -55,14 +62,24 @@ export async function embedCommand(
     let tweets: Tweet[];
 
     try {
-      const dbTweets = await tweetQueries.getTweetsWithoutEmbeddings();
+      // Use session-specific query if searchSessionId is provided
+      const dbTweets = searchSessionId
+        ? await tweetQueries.getTweetsWithoutEmbeddingsBySession(
+            searchSessionId,
+          )
+        : await tweetQueries.getTweetsWithoutEmbeddings();
 
       if (dbTweets.length === 0) {
+        const message = searchSessionId
+          ? "No tweets without embeddings found for this search session"
+          : "No tweets without embeddings found in database";
+        const error = searchSessionId
+          ? "All tweets from this session already have embeddings, or no new tweets were collected."
+          : "All tweets already have embeddings, or no tweets exist. Scrape some tweets first using: xgpt scrape <username>";
         return {
-          success: false,
-          message: "No tweets without embeddings found in database",
-          error:
-            "All tweets already have embeddings, or no tweets exist. Scrape some tweets first using: xgpt scrape <username>",
+          success: true, // Changed to true for session case - it's not an error if session tweets are already embedded
+          message,
+          error,
         };
       }
 

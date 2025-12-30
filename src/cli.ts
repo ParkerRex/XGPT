@@ -157,7 +157,7 @@ program
   .description("Search for tweets by topic or phrase")
   .argument(
     "[query]",
-    'Comma-separated search terms (e.g., "PM, Product Manager")',
+    'Comma-separated search terms (e.g., "AGI, GPT-5, foundation models")',
   )
   .option(
     "--name <name>",

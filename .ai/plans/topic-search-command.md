@@ -2,9 +2,9 @@
 
 ## Overview
 
-Add a new `search` command to xgpt that finds tweets by topic/phrase using Twitter's search API. This enables discovering content like job postings that aren't tied to specific accounts.
+Add a new `search` command to xgpt that finds tweets by topic/phrase using Twitter's search API. This enables discovering trending discussions, tracking tech movements, and finding content that isn't tied to specific accounts.
 
-**Problem:** People post "hiring PM" on Twitter without formal job listings. We need to find these tweets by searching phrases rather than scraping specific users.
+**Problem:** Valuable discussions happen across Twitter without centralized sources. We need to find tweets by searching phrases rather than scraping specific users.
 
 **Solution:** New `search` command using twitter-scraper's `searchTweets()` API with support for variant terms, date filtering, and result tracking.
 
@@ -38,29 +38,29 @@ xgpt search "<variants>" [options]
 ### Usage Examples
 
 ```bash
-# Find PM job posts from last 7 days
-xgpt search "hiring PM, Product Manager, Sr. PM, Senior Product Manager" --days 7
+# Find AI startup discussions from last 7 days
+xgpt search "building in public, indie hacker, shipped" --days 7
 
 # Save as reusable topic
-xgpt search "hiring PM, Product Manager" --name "PM Jobs" --days 7 --max 1000
+xgpt search "AGI, GPT-5, foundation models" --name "AI Trends" --days 7 --max 1000
 
 # Re-run existing topic with new options
-xgpt search "hiring PM, Product Manager" --name "PM Jobs" --days 1
+xgpt search "AGI, GPT-5" --name "AI Trends" --days 1
 
 # Search with custom date range (local timezone)
-xgpt search "startup, founder" --since 2024-12-01 --until 2024-12-29
+xgpt search "YC demo day, fundraising" --since 2024-12-01 --until 2024-12-29
 
 # Preview query without executing
-xgpt search "typescript tips, TS tips" --dry-run
+xgpt search "rust lang, rustacean" --dry-run
 
 # Search and auto-embed results
-xgpt search "typescript tips" --mode top --embed
+xgpt search "open source, oss maintainer" --mode top --embed
 
 # Resume interrupted search
 xgpt search --resume 42
 
 # Machine-readable output for scripting
-xgpt search "hiring PM" --days 7 --json
+xgpt search "web3, crypto alpha" --days 7 --json
 
 # Cleanup old sessions
 xgpt search --cleanup --older-than 30d
@@ -116,7 +116,7 @@ xgpt search --cleanup --older-than 30d
 | Update frequency | **Every tweet** | Immediate feedback on each tweet processed |
 | Result output | **Stats summary** | Counts only: "47 new tweets, 12 duplicates, 8 users created" |
 | Empty results | **Helpful message** | "No tweets found. Try broader variants or different date range." + suggestions |
-| Topic rerun syntax | **Full command** | `xgpt search --name "PM Jobs"` to re-run with saved variants |
+| Topic rerun syntax | **Full command** | `xgpt search --name "AI Trends"` to re-run with saved variants |
 | Ad-hoc search history | **Fire and forget** | Logged but not easily queryable |
 | Dry-run support | **Yes** | `--dry-run` shows query, variant count, date range, then exits |
 | JSON output | **Yes** | `--json` outputs structured JSON for scripting |
@@ -155,7 +155,7 @@ scraper.searchTweets(query: string, maxTweets: number, searchMode: SearchMode)
 ```
 
 **SearchMode options:**
-- `SearchMode.Latest` - Most recent tweets (default, best for job hunting)
+- `SearchMode.Latest` - Most recent tweets (default, best for tracking trends)
 - `SearchMode.Top` - Popular/trending tweets
 
 **Query syntax:**
@@ -166,7 +166,7 @@ scraper.searchTweets(query: string, maxTweets: number, searchMode: SearchMode)
 
 **Example built query:**
 ```
-"hiring PM" OR "Product Manager" OR "Sr. PM" since:2024-12-22 -filter:retweets
+"AGI" OR "GPT-5" OR "foundation models" since:2024-12-22 -filter:retweets
 ```
 
 ### Query Auto-Splitting
@@ -212,8 +212,8 @@ function splitQuery(variants: string[], maxLength: number = 450): string[][] {
 ```sql
 CREATE TABLE search_topics (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE,           -- "PM Jobs"
-  variants TEXT NOT NULL,              -- JSON: ["hiring PM", "Product Manager"]
+  name TEXT NOT NULL UNIQUE,           -- "AI Trends"
+  variants TEXT NOT NULL,              -- JSON: ["AGI", "GPT-5", "foundation models"]
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   last_searched INTEGER,
@@ -352,7 +352,7 @@ export const tweetSearchOrigins = sqliteTable("tweet_search_origins", {
 ```typescript
 /**
  * Parse comma-separated variants
- * "PM, Product Manager, Sr. PM" => ["PM", "Product Manager", "Sr. PM"]
+ * "AGI, GPT-5, foundation models" => ["AGI", "GPT-5", "foundation models"]
  */
 export function parseSearchVariants(input: string): string[] {
   return input.split(',').map(v => v.trim()).filter(v => v.length > 0);
@@ -360,7 +360,7 @@ export function parseSearchVariants(input: string): string[] {
 
 /**
  * Build Twitter search query
- * ["PM", "Product Manager"] + 7 days => "\"PM\" OR \"Product Manager\" since:2024-12-22 -filter:retweets"
+ * ["AGI", "GPT-5"] + 7 days => "\"AGI\" OR \"GPT-5\" since:2024-12-22 -filter:retweets"
  */
 export function buildTwitterQuery(
   variants: string[],
@@ -754,13 +754,124 @@ async function resumeSearch(sessionId: number): Promise<CommandResult> {
     return { success: false, message: `Search session ${sessionId} is already completed` };
   }
 
-  const cursor = await searchQueries.getCursor(sessionId);
-  if (!cursor) {
+  const cursorData = await searchQueries.getCursor(sessionId);
+  if (!cursorData) {
     return { success: false, message: `No cursor saved for session ${sessionId}. Cannot resume.` };
   }
 
-  // Resume search from cursor...
-  // Implementation continues from saved cursor position
+  // Mark session as running again
+  await searchQueries.updateSession(sessionId, { status: 'running' });
+
+  // Reconstruct options from session
+  const variants = session.variants as string[];
+  const dateRange = session.dateStart && session.dateEnd
+    ? { start: session.dateStart, end: session.dateEnd }
+    : null;
+
+  // Rebuild query groups (same logic as initial search)
+  const queryGroups = splitQuery(variants);
+  const twitterQueries = queryGroups.map(group => buildTwitterQuery(group, dateRange));
+
+  // Initialize stats from existing session data
+  const stats: SearchStats = {
+    tweetsCollected: session.tweetsCollected || 0,
+    totalProcessed: session.totalProcessed || 0,
+    duplicatesSkipped: session.duplicatesSkipped || 0,
+    usersCreated: session.usersCreated || 0
+  };
+
+  const scraper = await getScraper();
+  const searchMode = session.searchMode === 'Top' ? SearchMode.Top : SearchMode.Latest;
+  const maxPerQuery = Math.ceil(session.maxTweets / twitterQueries.length);
+  const remainingTweets = session.maxTweets - stats.tweetsCollected;
+
+  console.log(`Resuming search session ${sessionId}...`);
+  console.log(`Progress: ${stats.tweetsCollected}/${session.maxTweets} tweets collected`);
+
+  // Resume from cursor position
+  for (const query of twitterQueries) {
+    try {
+      // Pass cursor to resume from last position
+      const tweetIterator = scraper.searchTweets(query, remainingTweets, searchMode);
+
+      for await (const tweet of tweetIterator) {
+        // Skip tweets we've already processed (before cursor)
+        if (tweet.id && tweet.id <= cursorData.lastTweetId) {
+          continue;
+        }
+
+        stats.totalProcessed++;
+        updateProgress(stats, session.maxTweets);
+
+        // Skip unavailable tweets silently
+        if (!tweet.id || !tweet.text) continue;
+
+        // Check for duplicate (pre-existing only)
+        const exists = await tweetQueries.tweetExists(tweet.id);
+        if (exists) {
+          stats.duplicatesSkipped++;
+          continue;
+        }
+
+        // Create user if needed
+        const user = await userQueries.upsertUser({
+          username: tweet.username,
+          name: tweet.name,
+          bio: tweet.userBio,
+          followersCount: tweet.userFollowers
+        });
+        if (user.created) stats.usersCreated++;
+
+        // Save tweet
+        await tweetQueries.insertTweet({
+          id: tweet.id,
+          userId: user.id,
+          text: tweet.text,
+          createdAt: tweet.timeParsed,
+        });
+
+        // Record origin
+        const matchedVariant = matchVariant(tweet.text, variants) || variants[0];
+        await searchQueries.recordTweetOrigin({
+          tweetId: tweet.id,
+          searchSessionId: sessionId,
+          matchedVariant
+        });
+
+        stats.tweetsCollected++;
+
+        // Save cursor periodically
+        if (stats.totalProcessed % 50 === 0) {
+          await searchQueries.saveCursor(sessionId, tweet.cursor || '', tweet.id);
+        }
+
+        if (stats.tweetsCollected >= session.maxTweets) break;
+      }
+    } catch (error) {
+      if (isRateLimitError(error)) {
+        console.log('\nRate limited. Waiting for reset...');
+        await waitForRateLimitReset(error);
+        continue;
+      }
+      console.error(`\nError processing tweet: ${error.message}`);
+      continue;
+    }
+  }
+
+  // Clear progress line
+  process.stdout.write('\r' + ' '.repeat(80) + '\r');
+
+  // Update session with final results
+  await searchQueries.updateSession(sessionId, {
+    ...stats,
+    status: 'completed',
+    completedAt: new Date()
+  });
+
+  return {
+    success: true,
+    message: `Resume complete: ${stats.tweetsCollected} total tweets, ${stats.usersCreated} users created`
+  };
 }
 ```
 
@@ -770,7 +881,7 @@ async function resumeSearch(sessionId: number): Promise<CommandResult> {
 program
   .command('search')
   .description('Search for tweets by topic or phrase')
-  .argument('[query]', 'Comma-separated search terms (e.g., "PM, Product Manager")')
+  .argument('[query]', 'Comma-separated search terms (e.g., "AGI, GPT-5")')
   .option('--name <name>', 'Save search as a named topic (or reference existing)')
   .option('--max <number>', 'Maximum tweets to search', '500')
   .option('--days <number>', 'Limit to tweets from last N days', '7')
@@ -862,15 +973,15 @@ Suggestions:
 ```
 Dry Run - Query Preview
 
-Variants (3): "hiring PM", "Product Manager", "Sr. PM"
+Variants (3): "AGI", "GPT-5", "foundation models"
 Date range: 2024-12-22 to 2024-12-29 (local time)
 Search mode: Latest
 Max tweets: 500
 
 Twitter query:
-"hiring PM" OR "Product Manager" OR "Sr. PM" since:2024-12-22 until:2024-12-29 -filter:retweets
+"AGI" OR "GPT-5" OR "foundation models" since:2024-12-22 until:2024-12-29 -filter:retweets
 
-Total query length: 98/500 characters
+Total query length: 89/500 characters
 ```
 
 ### JSON Output

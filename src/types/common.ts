@@ -36,6 +36,7 @@ export interface EmbeddingOptions {
   batchSize?: number;
   inputFile?: string;
   outputFile?: string;
+  searchSessionId?: number; // Filter to only embed tweets from a specific search session
 }
 
 export interface QueryOptions {

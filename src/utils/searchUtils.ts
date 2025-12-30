@@ -9,7 +9,7 @@ export interface DateRange {
 
 /**
  * Parse comma-separated variants
- * "PM, Product Manager, Sr. PM" => ["PM", "Product Manager", "Sr. PM"]
+ * "AGI, GPT-5, foundation models" => ["AGI", "GPT-5", "foundation models"]
  */
 export function parseSearchVariants(input: string): string[] {
   return input
@@ -20,7 +20,7 @@ export function parseSearchVariants(input: string): string[] {
 
 /**
  * Build Twitter search query
- * ["PM", "Product Manager"] + 7 days => "\"PM\" OR \"Product Manager\" since:2024-12-22 -filter:retweets"
+ * ["AGI", "GPT-5"] + 7 days => "\"AGI\" OR \"GPT-5\" since:2024-12-22 -filter:retweets"
  */
 export function buildTwitterQuery(
   variants: string[],

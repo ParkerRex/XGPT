@@ -125,10 +125,10 @@ export async function searchCommand(
       options,
     );
 
-    // 7. Handle embedding
+    // 7. Handle embedding (session-only scope)
     if (options.embed && stats.tweetsCollected > 0) {
       console.log(`\n[embed] Generating embeddings for session tweets...`);
-      await embedCommand({});
+      await embedCommand({ searchSessionId: session.id });
       stats.embeddingsGenerated = true;
       await searchSessionQueries.updateSession(session.id, {
         embeddingsGenerated: true,
