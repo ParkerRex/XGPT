@@ -19,9 +19,26 @@ xgpt scrape <username>        # Scrape tweets
 xgpt search "terms"           # Search tweets by topic/phrase
 xgpt embed                    # Generate embeddings
 xgpt ask "question"           # Semantic search + GPT answer
+xgpt serve                    # Start web UI at localhost:3000
 xgpt db --stats               # Database stats
 xgpt config list              # Show config
 ```
+
+## Web UI
+
+Start a browser-based interface with all CLI functionality:
+
+```bash
+xgpt serve                    # http://localhost:3000
+xgpt serve --port 8080        # Custom port
+```
+
+Features:
+- **Dashboard** - Stats overview, quick actions
+- **Scrape** - Scrape tweets from any user
+- **Search** - Topic-based search with filters
+- **Ask** - AI Q&A with relevant tweets
+- **Config** - Edit settings inline
 
 ### Search Command
 
@@ -79,7 +96,8 @@ Search and scrape operations count against your account's rate limits. Excessive
 - SQLite + Drizzle ORM
 - OpenAI API (embeddings + chat)
 - [@the-convocation/twitter-scraper](https://github.com/the-convocation/twitter-scraper) v0.21.0
-- Commander.js
+- Commander.js (CLI)
+- Elysia + HTMX (Web UI)
 
 ## Development
 

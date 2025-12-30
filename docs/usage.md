@@ -1,5 +1,21 @@
 # Usage
 
+## Web UI
+
+The easiest way to use XGPT with a visual interface:
+
+```bash
+xgpt serve                    # Start at http://localhost:3000
+xgpt serve --port 8080        # Custom port
+```
+
+The web UI provides:
+- **Dashboard** - View stats (users, tweets, embeddings, sessions) and quick actions
+- **Scrape** - Enter username, set options, start scraping
+- **Search** - Topic-based search with date filters and auto-embed option
+- **Ask** - Ask questions, see AI answers with relevant tweets and similarity scores
+- **Config** - Edit all settings inline with auto-save
+
 ## Interactive Mode
 
 The easiest way to get started:
