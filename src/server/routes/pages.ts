@@ -185,7 +185,7 @@ export function registerPageRoutes(app: Elysia) {
             <div class="grid grid-2">
               <div class="form-group">
                 <label for="maxResults">Max Results</label>
-                <input type="number" id="maxResults" name="maxResults" value="20" min="1" max="100">
+                <input type="number" id="maxResults" name="maxResults" value="20" min="1" max="10000">
               </div>
               <div class="form-group">
                 <div class="checkbox-group" style="margin-top: 1.5rem;">
