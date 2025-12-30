@@ -13,6 +13,16 @@ export {
   configInfoCommand,
 } from "./config.js";
 
+// Export command runner utilities
+export {
+  runCommand,
+  createCommand,
+  updateJobProgress,
+  runBatch,
+  runWithRetry,
+} from "./runner.js";
+export type { CommandRunnerOptions, CommandRunnerResult } from "./runner.js";
+
 // Re-export types for convenience
 export type {
   Tweet,
