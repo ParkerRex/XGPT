@@ -75,6 +75,13 @@ xgpt/
 - **AI**: OpenAI API (embeddings + chat)
 - **Scraping**: @the-convocation/twitter-scraper (v0.21.0)
 
+## Database Features
+
+- **Soft Deletes**: Users and tweets have `deletedAt` columns. Deleted records are filtered out by default but can be restored.
+- **Pagination**: `getAllUsers()` returns paginated results with `{ data, total, limit, offset, hasMore }`.
+- **Indexes**: Optimized indexes on bio, location, verified status, and deletion timestamps for fast queries.
+- **Nullable Foreign Keys**: Tweets can exist without user records (for search results).
+
 ## Rate Limiting
 
 Two layers of rate limiting:

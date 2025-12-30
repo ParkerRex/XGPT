@@ -57,36 +57,34 @@ const table = (headers: string[], rows: string[][]) => `...`;
 
 ## Database & Data
 
-### 5. Add proper database migrations runner [P1]
+### 5. ~~Add proper database migrations runner~~ [P1] DONE
 **Problem:** Using `drizzle-kit generate` but migrations are applied manually with `sqlite3`. No programmatic runner.
-**Solution:** Create migration runner that:
-- Tracks applied migrations in `_migrations` table
-- Runs pending migrations on startup
-- Supports rollback
-**Files:** `src/database/migrations.ts`, `src/database/connection.ts`
+**Solution:** Already handled by Drizzle ORM's `migrate()` function in `connection.ts`.
+**Status:** Already implemented. Migrations run automatically via `bun run src/cli.ts db --init`.
 
-### 6. Index the bio column for search [P2]
+### 6. ~~Index the bio column for search~~ [P2] DONE
 **Problem:** Now storing bios but can't search them efficiently.
-**Solution:** Add SQLite FTS5 virtual table for full-text search on bio, username, displayName.
-**Files:** `src/database/schema.ts`, new migration
+**Solution:** Added indexes on bio, location, verified status, and deletedAt columns.
+**Files:** `src/database/schema.ts`, migration `0004_polite_night_thrasher.sql`
+**Status:** Completed in commit cbf426c.
 
-### 7. Add user-tweet relationship integrity [P2]
+### 7. ~~Add user-tweet relationship integrity~~ [P2] DONE
 **Problem:** Some tweets from search reference users not in users table. Foreign key could fail.
-**Solution:** Either:
-- Lazy create users when inserting tweets
-- Remove foreign key constraint
-- Add `ON DELETE SET NULL`
-**Files:** `src/database/schema.ts`, `src/database/queries.ts`
+**Solution:** Made `userId` nullable on tweets table so search results don't require user records.
+**Files:** `src/database/schema.ts`
+**Status:** Completed in commit cbf426c.
 
-### 8. Implement soft deletes [P3]
+### 8. ~~Implement soft deletes~~ [P3] DONE
 **Problem:** `DELETE` is permanent. No recovery option.
-**Solution:** Add `deleted_at` timestamp columns. Filter out deleted records in queries.
+**Solution:** Added `deletedAt` columns to users and tweets. All queries filter out soft-deleted records. Added `softDeleteUser()`, `restoreUser()`, `softDeleteTweet()`, `restoreTweet()` methods.
 **Files:** `src/database/schema.ts`, `src/database/queries.ts`
+**Status:** Completed in commit cbf426c.
 
-### 9. Add pagination to queries [P0]
+### 9. ~~Add pagination to queries~~ [P0] DONE
 **Problem:** `getAllUsers()` returns everything. Will break with thousands of users.
-**Solution:** Add `limit` and `offset` params to all list queries. Update UI with pagination controls.
-**Files:** `src/database/queries.ts`, `src/server.ts`
+**Solution:** Added `PaginationOptions` and `PaginatedResult<T>` types. `getAllUsers()` now returns paginated results with `{ data, total, limit, offset, hasMore }`. Added `getAllUsersSimple()` for backwards compatibility.
+**Files:** `src/database/queries.ts`, `src/types/common.ts`
+**Status:** Completed in commit cbf426c.
 
 ---
 
