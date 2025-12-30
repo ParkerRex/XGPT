@@ -249,13 +249,7 @@ export function createServer(port = 3000) {
       const health = checkDatabaseHealth();
       let stats = { users: 0, tweets: 0, embeddings: 0, sessions: 0 };
       try {
-        const dbStats = await statsQueries.getOverallStats();
-        stats = {
-          users: dbStats.totalUsers,
-          tweets: dbStats.totalTweets,
-          embeddings: dbStats.totalEmbeddings,
-          sessions: dbStats.totalSessions,
-        };
+        stats = await statsQueries.getOverallStats();
       } catch (e) {
         // DB may not be initialized
       }
