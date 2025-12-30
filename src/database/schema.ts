@@ -2,50 +2,70 @@ import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // Users table - tracks scraped Twitter users
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  username: text("username").notNull().unique(),
-  displayName: text("display_name"),
-  bio: text("bio"),
-  location: text("location"),
-  website: text("website"),
-  followersCount: integer("followers_count"),
-  followingCount: integer("following_count"),
-  tweetsCount: integer("tweets_count"),
-  isVerified: integer("is_verified", { mode: "boolean" }),
-  lastScraped: integer("last_scraped", { mode: "timestamp" }),
-  totalTweets: integer("total_tweets").default(0),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const users = sqliteTable(
+  "users",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    username: text("username").notNull().unique(),
+    displayName: text("display_name"),
+    bio: text("bio"),
+    location: text("location"),
+    website: text("website"),
+    followersCount: integer("followers_count"),
+    followingCount: integer("following_count"),
+    tweetsCount: integer("tweets_count"),
+    isVerified: integer("is_verified", { mode: "boolean" }),
+    lastScraped: integer("last_scraped", { mode: "timestamp" }),
+    totalTweets: integer("total_tweets").default(0),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    deletedAt: integer("deleted_at", { mode: "timestamp" }),
+  },
+  (table) => ({
+    bioIdx: index("idx_users_bio").on(table.bio),
+    locationIdx: index("idx_users_location").on(table.location),
+    verifiedIdx: index("idx_users_verified").on(table.isVerified),
+    deletedIdx: index("idx_users_deleted").on(table.deletedAt),
+  }),
+);
 
 // Tweets table - stores scraped tweets
-export const tweets = sqliteTable("tweets", {
-  id: text("id").primaryKey(), // Twitter's tweet ID
-  text: text("text").notNull(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id),
-  username: text("username").notNull(), // Denormalized for faster queries
-  createdAt: integer("created_at", { mode: "timestamp" }),
-  scrapedAt: integer("scraped_at", { mode: "timestamp" })
-    .notNull()
-    .$defaultFn(() => new Date()),
+export const tweets = sqliteTable(
+  "tweets",
+  {
+    id: text("id").primaryKey(), // Twitter's tweet ID
+    text: text("text").notNull(),
+    userId: integer("user_id").references(() => users.id), // Nullable for search results
+    username: text("username").notNull(), // Denormalized for faster queries
+    createdAt: integer("created_at", { mode: "timestamp" }),
+    scrapedAt: integer("scraped_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
 
-  // Tweet metadata
-  isRetweet: integer("is_retweet", { mode: "boolean" }).default(false),
-  isReply: integer("is_reply", { mode: "boolean" }).default(false),
-  likes: integer("likes").default(0),
-  retweets: integer("retweets").default(0),
-  replies: integer("replies").default(0),
+    // Tweet metadata
+    isRetweet: integer("is_retweet", { mode: "boolean" }).default(false),
+    isReply: integer("is_reply", { mode: "boolean" }).default(false),
+    likes: integer("likes").default(0),
+    retweets: integer("retweets").default(0),
+    replies: integer("replies").default(0),
 
-  // Additional metadata as JSON
-  metadata: text("metadata", { mode: "json" }),
-});
+    // Additional metadata as JSON
+    metadata: text("metadata", { mode: "json" }),
+
+    // Soft delete
+    deletedAt: integer("deleted_at", { mode: "timestamp" }),
+  },
+  (table) => ({
+    userIdx: index("idx_tweets_user").on(table.userId),
+    usernameIdx: index("idx_tweets_username").on(table.username),
+    createdIdx: index("idx_tweets_created").on(table.createdAt),
+    deletedIdx: index("idx_tweets_deleted").on(table.deletedAt),
+  }),
+);
 
 // Embeddings table - stores vector embeddings for tweets
 export const embeddings = sqliteTable("embeddings", {

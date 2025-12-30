@@ -77,3 +77,17 @@ export interface SearchStats {
   embeddingsGenerated?: boolean;
   sessionId?: number;
 }
+
+// Pagination types
+export interface PaginationOptions {
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
