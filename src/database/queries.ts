@@ -23,10 +23,31 @@ import type {
   NewTweetSearchOrigin,
 } from "./schema.js";
 
+// Profile data for user upsert
+export interface ProfileData {
+  displayName?: string;
+  bio?: string;
+  location?: string;
+  website?: string;
+  followersCount?: number;
+  followingCount?: number;
+  tweetsCount?: number;
+  isVerified?: boolean;
+}
+
 // User operations
 export const userQueries = {
   // Create or get user
-  async upsertUser(username: string, displayName?: string): Promise<User> {
+  async upsertUser(
+    username: string,
+    displayNameOrProfile?: string | ProfileData,
+  ): Promise<User> {
+    // Handle legacy signature (username, displayName)
+    const profile: ProfileData =
+      typeof displayNameOrProfile === "string"
+        ? { displayName: displayNameOrProfile }
+        : (displayNameOrProfile ?? {});
+
     const existingUser = await db
       .select()
       .from(users)
@@ -34,13 +55,28 @@ export const userQueries = {
       .get();
 
     if (existingUser) {
-      // Update last scraped time
+      // Update user with new profile data
       const [updatedUser] = await db
         .update(users)
         .set({
           lastScraped: new Date(),
           updatedAt: new Date(),
-          ...(displayName && { displayName }),
+          ...(profile.displayName && { displayName: profile.displayName }),
+          ...(profile.bio !== undefined && { bio: profile.bio }),
+          ...(profile.location !== undefined && { location: profile.location }),
+          ...(profile.website !== undefined && { website: profile.website }),
+          ...(profile.followersCount !== undefined && {
+            followersCount: profile.followersCount,
+          }),
+          ...(profile.followingCount !== undefined && {
+            followingCount: profile.followingCount,
+          }),
+          ...(profile.tweetsCount !== undefined && {
+            tweetsCount: profile.tweetsCount,
+          }),
+          ...(profile.isVerified !== undefined && {
+            isVerified: profile.isVerified,
+          }),
         })
         .where(eq(users.id, existingUser.id))
         .returning();
@@ -52,7 +88,14 @@ export const userQueries = {
       .insert(users)
       .values({
         username,
-        displayName,
+        displayName: profile.displayName,
+        bio: profile.bio,
+        location: profile.location,
+        website: profile.website,
+        followersCount: profile.followersCount,
+        followingCount: profile.followingCount,
+        tweetsCount: profile.tweetsCount,
+        isVerified: profile.isVerified,
         lastScraped: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),

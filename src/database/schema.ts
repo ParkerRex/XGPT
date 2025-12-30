@@ -6,6 +6,13 @@ export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
   displayName: text("display_name"),
+  bio: text("bio"),
+  location: text("location"),
+  website: text("website"),
+  followersCount: integer("followers_count"),
+  followingCount: integer("following_count"),
+  tweetsCount: integer("tweets_count"),
+  isVerified: integer("is_verified", { mode: "boolean" }),
   lastScraped: integer("last_scraped", { mode: "timestamp" }),
   totalTweets: integer("total_tweets").default(0),
   createdAt: integer("created_at", { mode: "timestamp" })

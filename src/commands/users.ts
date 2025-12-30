@@ -82,7 +82,16 @@ export async function discoverCommand(
       // Save to database if requested
       if (save && discovered.username !== "unknown") {
         try {
-          await userQueries.upsertUser(discovered.username, discovered.name);
+          await userQueries.upsertUser(discovered.username, {
+            displayName: discovered.name,
+            bio: discovered.bio,
+            location: discovered.location,
+            website: discovered.website,
+            followersCount: discovered.followers,
+            followingCount: discovered.following,
+            tweetsCount: discovered.tweets,
+            isVerified: discovered.verified,
+          });
           savedCount++;
         } catch {
           // Ignore duplicate errors

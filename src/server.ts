@@ -4,6 +4,7 @@ import { scrapeCommand } from "./commands/scrape.js";
 import { embedCommand } from "./commands/embed.js";
 import { askCommand } from "./commands/ask.js";
 import { searchCommand } from "./commands/search.js";
+import { discoverCommand } from "./commands/users.js";
 import {
   listConfigCommand,
   getConfigCommand,
@@ -230,6 +231,7 @@ const layout = (title: string, content: string) => `
         <a href="/" class="${title === "Dashboard" ? "active" : ""}">Dashboard</a>
         <a href="/scrape" class="${title === "Scrape" ? "active" : ""}">Scrape</a>
         <a href="/search" class="${title === "Search" ? "active" : ""}">Search</a>
+        <a href="/discover" class="${title === "Discover" ? "active" : ""}">Discover</a>
         <a href="/ask" class="${title === "Ask" ? "active" : ""}">Ask</a>
         <a href="/config" class="${title === "Config" ? "active" : ""}">Config</a>
       </nav>
@@ -390,6 +392,43 @@ export function createServer(port = 3000) {
       );
     })
 
+    // Discover Page
+    .get("/discover", () => {
+      return layout(
+        "Discover",
+        `
+        <div class="card">
+          <h2>Discover Twitter Profiles</h2>
+          <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.875rem;">
+            Search for Twitter profiles by bio, name, or keywords. Find users with specific interests or affiliations.
+          </p>
+          <form hx-post="/api/discover" hx-ext="json-enc" hx-target="#discover-result" hx-indicator="#discover-indicator">
+            <div class="form-group">
+              <label for="query">Search Query</label>
+              <input type="text" id="query" name="query" placeholder="google engineer, AI researcher, indie hacker..." required>
+            </div>
+            <div class="grid grid-2">
+              <div class="form-group">
+                <label for="maxResults">Max Results</label>
+                <input type="number" id="maxResults" name="maxResults" value="20" min="1" max="100">
+              </div>
+              <div class="form-group">
+                <div class="checkbox-group" style="margin-top: 1.5rem;">
+                  <label><input type="checkbox" name="save" checked> Save to database</label>
+                </div>
+              </div>
+            </div>
+            <button type="submit">
+              Discover Profiles
+              <span id="discover-indicator" class="htmx-indicator"> (searching...)</span>
+            </button>
+          </form>
+          <div id="discover-result"></div>
+        </div>
+      `,
+      );
+    })
+
     // Ask Page
     .get("/ask", () => {
       return layout(
@@ -542,6 +581,70 @@ export function createServer(port = 3000) {
           days: t.Optional(t.Number()),
           mode: t.Optional(t.String()),
           embed: t.Optional(t.Boolean()),
+        }),
+      },
+    )
+
+    .post(
+      "/api/discover",
+      async ({ body }) => {
+        try {
+          const result = await discoverCommand({
+            query: body.query,
+            maxResults: body.maxResults || 20,
+            save: body.save ?? true,
+            json: true,
+          });
+
+          if (result.success && result.data) {
+            const profiles = result.data.profiles || [];
+            const savedCount = result.data.savedCount || 0;
+
+            const formatNumber = (n: number | undefined): string => {
+              if (n === undefined) return "N/A";
+              if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+              if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+              return n.toString();
+            };
+
+            const profilesHtml = profiles
+              .map(
+                (p: any) => `
+                <div class="tweet">
+                  <div class="tweet-header">
+                    <span><strong>@${p.username}</strong>${p.verified ? " [verified]" : ""}</span>
+                    <span class="similarity">${formatNumber(p.followers)} followers</span>
+                  </div>
+                  <div class="tweet-text">
+                    <strong>${p.name || "N/A"}</strong><br>
+                    ${p.bio ? p.bio.substring(0, 200) + (p.bio.length > 200 ? "..." : "") : "No bio"}
+                    ${p.location ? `<br><span style="color: var(--text-muted);">Location: ${p.location}</span>` : ""}
+                  </div>
+                </div>
+              `,
+              )
+              .join("");
+
+            return `
+              <div class="result success">
+                <strong>Found ${profiles.length} profiles</strong>${body.save ? ` | Saved ${savedCount} to database` : ""}
+              </div>
+              <div class="card" style="margin-top: 1rem;">
+                <h2>Discovered Profiles</h2>
+                ${profilesHtml || "<p>No profiles found</p>"}
+              </div>
+            `;
+          }
+          return `<div class="result error">${result.error || result.message}</div>`;
+        } catch (e: any) {
+          return `<div class="result error">Error: ${e.message}</div>`;
+        }
+      },
+      {
+        body: t.Object({
+          query: t.String(),
+          maxResults: t.Optional(t.Number()),
+          save: t.Optional(t.Boolean()),
         }),
       },
     )
