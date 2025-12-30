@@ -5,7 +5,7 @@ export interface Tweet {
   text: string;
   user?: string;
   created_at?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TweetWithEmbedding extends Tweet {
@@ -46,10 +46,10 @@ export interface QueryOptions {
   vectorFile?: string;
 }
 
-export interface CommandResult {
+export interface CommandResult<T = unknown> {
   success: boolean;
   message: string;
-  data?: any;
+  data?: T;
   error?: string;
 }
 

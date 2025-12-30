@@ -36,6 +36,13 @@
       "when": 1767116446866,
       "tag": "0004_polite_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1767123184099,
+      "tag": "0005_rich_scourge",
+      "breakpoints": true
     }
   ]
 }

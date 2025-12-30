@@ -386,7 +386,7 @@ program
   .action(async (options) => {
     await ensureDatabaseReady();
     const port = parseInt(options.port);
-    createServer(port);
+    await createServer(port);
     console.log(`[info] Web UI available at http://localhost:${port}`);
     console.log("[info] Press Ctrl+C to stop the server");
   });

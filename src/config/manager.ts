@@ -3,11 +3,15 @@
  * Handles loading, saving, and merging user configuration with environment variables
  */
 
-import { join } from 'path';
-import { homedir } from 'os';
-import { existsSync, mkdirSync } from 'fs';
-import type { UserConfig, ConfigKeyPath } from './schema.js';
-import { DEFAULT_CONFIG, CONFIG_VALIDATION, CONFIG_DESCRIPTIONS } from './schema.js';
+import { join } from "path";
+import { homedir } from "os";
+import { existsSync, mkdirSync } from "fs";
+import type { UserConfig, ConfigKeyPath } from "./schema.js";
+import {
+  DEFAULT_CONFIG,
+  CONFIG_VALIDATION,
+  CONFIG_DESCRIPTIONS,
+} from "./schema.js";
 
 export class ConfigManager {
   private configDir: string;
@@ -16,8 +20,8 @@ export class ConfigManager {
   private loaded: boolean = false;
 
   constructor() {
-    this.configDir = join(homedir(), '.xgpt');
-    this.configFile = join(this.configDir, 'config.json');
+    this.configDir = join(homedir(), ".xgpt");
+    this.configFile = join(this.configDir, "config.json");
     this.config = { ...DEFAULT_CONFIG };
   }
 
@@ -40,7 +44,7 @@ export class ConfigManager {
         this.config = this.mergeConfigs(DEFAULT_CONFIG, fileConfig);
       } catch (error) {
         console.warn(`[warn] Warning: Could not load config file: ${error}`);
-        console.warn('   Using default configuration');
+        console.warn("   Using default configuration");
       }
     }
 
@@ -56,7 +60,7 @@ export class ConfigManager {
    */
   async save(): Promise<void> {
     this.ensureConfigDirectory();
-    
+
     try {
       const configJson = JSON.stringify(this.config, null, 2);
       await Bun.write(this.configFile, configJson);
@@ -75,7 +79,7 @@ export class ConfigManager {
   /**
    * Set a configuration value by key path
    */
-  async set(keyPath: ConfigKeyPath, value: any): Promise<void> {
+  async set(keyPath: ConfigKeyPath, value: unknown): Promise<void> {
     // Validate the value
     this.validateValue(keyPath, value);
 
@@ -120,8 +124,9 @@ export class ConfigManager {
    * Validate a configuration value
    */
   private validateValue(keyPath: ConfigKeyPath, value: any): void {
-    const validation = CONFIG_VALIDATION[keyPath as keyof typeof CONFIG_VALIDATION];
-    
+    const validation =
+      CONFIG_VALIDATION[keyPath as keyof typeof CONFIG_VALIDATION];
+
     if (!validation) {
       return; // No validation rules for this key
     }
@@ -129,12 +134,20 @@ export class ConfigManager {
     if (Array.isArray(validation)) {
       // Enum validation
       if (!validation.includes(value)) {
-        throw new Error(`Invalid value for ${keyPath}. Must be one of: ${validation.join(', ')}`);
+        throw new Error(
+          `Invalid value for ${keyPath}. Must be one of: ${validation.join(", ")}`,
+        );
       }
-    } else if (typeof validation === 'object' && 'min' in validation) {
+    } else if (typeof validation === "object" && "min" in validation) {
       // Range validation
-      if (typeof value !== 'number' || value < validation.min || value > validation.max) {
-        throw new Error(`Invalid value for ${keyPath}. Must be a number between ${validation.min} and ${validation.max}`);
+      if (
+        typeof value !== "number" ||
+        value < validation.min ||
+        value > validation.max
+      ) {
+        throw new Error(
+          `Invalid value for ${keyPath}. Must be a number between ${validation.min} and ${validation.max}`,
+        );
       }
     }
   }
@@ -143,14 +156,14 @@ export class ConfigManager {
    * Get nested value from object using dot notation
    */
   private getNestedValue(obj: any, path: string): any {
-    return path.split('.').reduce((current, key) => current?.[key], obj);
+    return path.split(".").reduce((current, key) => current?.[key], obj);
   }
 
   /**
    * Set nested value in object using dot notation
    */
   private setNestedValue(obj: any, path: string, value: any): void {
-    const keys = path.split('.');
+    const keys = path.split(".");
     const lastKey = keys.pop()!;
     const target = keys.reduce((current, key) => {
       if (!(key in current)) {
@@ -164,20 +177,27 @@ export class ConfigManager {
   /**
    * Merge two configuration objects deeply
    */
-  private mergeConfigs(base: UserConfig, override: Partial<UserConfig>): UserConfig {
+  private mergeConfigs(
+    base: UserConfig,
+    override: Partial<UserConfig>,
+  ): UserConfig {
     const result = { ...base };
-    
+
     for (const [key, value] of Object.entries(override)) {
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ) {
         result[key as keyof UserConfig] = {
           ...result[key as keyof UserConfig],
-          ...value
+          ...value,
         } as any;
       } else {
         result[key as keyof UserConfig] = value as any;
       }
     }
-    
+
     return result;
   }
 
@@ -244,7 +264,10 @@ export function getConfig<T = any>(keyPath: ConfigKeyPath): T {
 /**
  * Set a configuration value
  */
-export async function setConfig(keyPath: ConfigKeyPath, value: any): Promise<void> {
+export async function setConfig(
+  keyPath: ConfigKeyPath,
+  value: any,
+): Promise<void> {
   const manager = getConfigManager();
   await manager.set(keyPath, value);
 }
@@ -261,5 +284,5 @@ export async function resetConfig(): Promise<void> {
  * Get configuration description for a key
  */
 export function getConfigDescription(keyPath: ConfigKeyPath): string {
-  return CONFIG_DESCRIPTIONS[keyPath] || 'No description available';
+  return CONFIG_DESCRIPTIONS[keyPath] || "No description available";
 }

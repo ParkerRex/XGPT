@@ -8,6 +8,7 @@ import {
   searchTopics,
   searchSessions,
   tweetSearchOrigins,
+  jobs,
 } from "./schema.js";
 import type {
   User,
@@ -21,6 +22,8 @@ import type {
   SearchSession,
   NewSearchSession,
   NewTweetSearchOrigin,
+  Job,
+  NewJob,
 } from "./schema.js";
 import type { PaginationOptions, PaginatedResult } from "../types/common.js";
 
@@ -153,7 +156,7 @@ export const userQueries = {
       .select()
       .from(users)
       .where(isNull(users.deletedAt))
-      .orderBy(desc(users.lastScraped));
+      .orderBy(desc(users.followersCount));
   },
 
   // Soft delete a user
@@ -715,5 +718,112 @@ export const tweetOriginQueries = {
       breakdown[row.variant] = row.count;
     }
     return breakdown;
+  },
+};
+
+// Job operations for persistent job tracking
+export const jobQueries = {
+  // Create a new job
+  async createJob(jobData: NewJob): Promise<Job> {
+    const [job] = await db.insert(jobs).values(jobData).returning();
+    return job!;
+  },
+
+  // Get job by ID
+  async getJobById(id: string): Promise<Job | null> {
+    return (await db.select().from(jobs).where(eq(jobs.id, id)).get()) || null;
+  },
+
+  // Update job progress
+  async updateProgress(
+    id: string,
+    current: number,
+    total: number,
+    message: string,
+  ): Promise<void> {
+    await db
+      .update(jobs)
+      .set({
+        progressCurrent: current,
+        progressTotal: total,
+        progressMessage: message,
+      })
+      .where(eq(jobs.id, id));
+  },
+
+  // Complete a job (success or failure)
+  async completeJob(
+    id: string,
+    success: boolean,
+    errorMessage?: string,
+  ): Promise<void> {
+    await db
+      .update(jobs)
+      .set({
+        status: success ? "completed" : "failed",
+        completedAt: new Date(),
+        errorMessage: errorMessage || null,
+      })
+      .where(eq(jobs.id, id));
+  },
+
+  // Get all active (running) jobs
+  async getActiveJobs(): Promise<Job[]> {
+    return await db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.status, "running"))
+      .orderBy(desc(jobs.startedAt));
+  },
+
+  // Get all jobs (including completed)
+  async getAllJobs(limit = 50): Promise<Job[]> {
+    return await db
+      .select()
+      .from(jobs)
+      .orderBy(desc(jobs.startedAt))
+      .limit(limit);
+  },
+
+  // Get recent jobs (completed within time window)
+  async getRecentJobs(withinMs: number = 30000): Promise<Job[]> {
+    const cutoff = new Date(Date.now() - withinMs);
+    return await db
+      .select()
+      .from(jobs)
+      .where(
+        sql`${jobs.status} = 'running' OR (${jobs.completedAt} IS NOT NULL AND ${jobs.completedAt} > ${cutoff.getTime()})`,
+      )
+      .orderBy(desc(jobs.startedAt));
+  },
+
+  // Delete a job
+  async deleteJob(id: string): Promise<void> {
+    await db.delete(jobs).where(eq(jobs.id, id));
+  },
+
+  // Clean up old completed jobs
+  async cleanupOldJobs(olderThanMs: number = 3600000): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanMs);
+    const result = await db
+      .delete(jobs)
+      .where(
+        and(sql`${jobs.status} != 'running'`, lt(jobs.completedAt, cutoff)),
+      );
+    return result.changes || 0;
+  },
+
+  // Mark stale running jobs as failed (for crash recovery)
+  async markStaleJobsFailed(olderThanMs: number = 3600000): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanMs);
+    const result = await db
+      .update(jobs)
+      .set({
+        status: "failed",
+        completedAt: new Date(),
+        errorMessage: "Job was interrupted (server restart)",
+      })
+      .where(and(eq(jobs.status, "running"), lt(jobs.startedAt, cutoff)));
+    return result.changes || 0;
   },
 };

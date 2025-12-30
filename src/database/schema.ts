@@ -259,6 +259,31 @@ export const tweetSearchOriginsRelations = relations(
   }),
 );
 
+// Jobs table - tracks background job execution
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: text("id").primaryKey(), // e.g., "scrape-1234567890"
+    type: text("type").notNull(), // 'scrape', 'search', 'embed', 'discover'
+    status: text("status").notNull().default("running"), // 'running', 'completed', 'failed'
+    progressCurrent: integer("progress_current").default(0),
+    progressTotal: integer("progress_total").default(0),
+    progressMessage: text("progress_message"),
+    metadata: text("metadata", { mode: "json" }).$type<
+      Record<string, unknown>
+    >(),
+    startedAt: integer("started_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    completedAt: integer("completed_at", { mode: "timestamp" }),
+    errorMessage: text("error_message"),
+  },
+  (table) => ({
+    statusIdx: index("idx_jobs_status").on(table.status),
+    startedIdx: index("idx_jobs_started").on(table.startedAt),
+  }),
+);
+
 // TypeScript types derived from schema
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -280,3 +305,6 @@ export type NewSearchSession = typeof searchSessions.$inferInsert;
 
 export type TweetSearchOrigin = typeof tweetSearchOrigins.$inferSelect;
 export type NewTweetSearchOrigin = typeof tweetSearchOrigins.$inferInsert;
+
+export type Job = typeof jobs.$inferSelect;
+export type NewJob = typeof jobs.$inferInsert;

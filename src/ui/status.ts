@@ -8,14 +8,14 @@ export interface StatusLineOptions {
   prefix?: string;
   suffix?: string;
   color?: boolean;
-  
+
   // Update behavior
   persistent?: boolean;
   clearOnUpdate?: boolean;
-  
+
   // Styling
   width?: number;
-  align?: 'left' | 'center' | 'right';
+  align?: "left" | "center" | "right";
 }
 
 export interface StatusMetrics {
@@ -24,13 +24,13 @@ export interface StatusMetrics {
   completed?: number;
   failed?: number;
   skipped?: number;
-  
+
   // Performance
   rate?: number;
   avgTime?: number;
-  
+
   // Custom metrics
-  [key: string]: any;
+  [key: string]: string | number | boolean | undefined;
 }
 
 /**
@@ -39,7 +39,7 @@ export interface StatusMetrics {
 export class StatusLine {
   private options: StatusLineOptions;
   private metrics: StatusMetrics = {};
-  private lastLine: string = '';
+  private lastLine: string = "";
   private stream: NodeJS.WriteStream;
 
   constructor(options: StatusLineOptions = {}) {
@@ -48,8 +48,8 @@ export class StatusLine {
       persistent: false,
       clearOnUpdate: true,
       width: process.stdout.columns || 80,
-      align: 'left',
-      ...options
+      align: "left",
+      ...options,
     };
     this.stream = process.stdout;
   }
@@ -63,17 +63,17 @@ export class StatusLine {
     }
 
     const statusLine = this.formatStatusLine(message);
-    
+
     if (this.options.clearOnUpdate) {
       this.clear();
     }
-    
+
     this.stream.write(statusLine);
-    
+
     if (this.options.persistent) {
-      this.stream.write('\n');
+      this.stream.write("\n");
     }
-    
+
     this.lastLine = statusLine;
   }
 
@@ -82,7 +82,7 @@ export class StatusLine {
    */
   clear(): void {
     // Use ANSI escape codes for Bun compatibility
-    this.stream.write('\r\x1b[K');
+    this.stream.write("\r\x1b[K");
   }
 
   /**
@@ -91,7 +91,7 @@ export class StatusLine {
   done(message?: string): void {
     this.clear();
     if (message) {
-      this.stream.write(message + '\n');
+      this.stream.write(message + "\n");
     }
   }
 
@@ -100,35 +100,35 @@ export class StatusLine {
    */
   private formatStatusLine(message: string): string {
     let line = message;
-    
+
     // Add prefix/suffix
     if (this.options.prefix) {
-      line = this.options.prefix + ' ' + line;
+      line = this.options.prefix + " " + line;
     }
     if (this.options.suffix) {
-      line = line + ' ' + this.options.suffix;
+      line = line + " " + this.options.suffix;
     }
-    
+
     // Add metrics
     const metricsStr = this.formatMetrics();
     if (metricsStr) {
-      line = line + ' | ' + metricsStr;
+      line = line + " | " + metricsStr;
     }
-    
+
     // Truncate if too long
     if (line.length > this.options.width!) {
-      line = line.substring(0, this.options.width! - 3) + '...';
+      line = line.substring(0, this.options.width! - 3) + "...";
     }
-    
+
     // Apply alignment
-    if (this.options.align === 'center') {
+    if (this.options.align === "center") {
       const padding = Math.floor((this.options.width! - line.length) / 2);
-      line = ' '.repeat(Math.max(0, padding)) + line;
-    } else if (this.options.align === 'right') {
+      line = " ".repeat(Math.max(0, padding)) + line;
+    } else if (this.options.align === "right") {
       const padding = this.options.width! - line.length;
-      line = ' '.repeat(Math.max(0, padding)) + line;
+      line = " ".repeat(Math.max(0, padding)) + line;
     }
-    
+
     return line;
   }
 
@@ -137,25 +137,32 @@ export class StatusLine {
    */
   private formatMetrics(): string {
     const parts: string[] = [];
-    
-    if (this.metrics.completed !== undefined && this.metrics.total !== undefined) {
-      const percentage = Math.round((this.metrics.completed / this.metrics.total) * 100);
-      parts.push(`${this.metrics.completed}/${this.metrics.total} (${percentage}%)`);
+
+    if (
+      this.metrics.completed !== undefined &&
+      this.metrics.total !== undefined
+    ) {
+      const percentage = Math.round(
+        (this.metrics.completed / this.metrics.total) * 100,
+      );
+      parts.push(
+        `${this.metrics.completed}/${this.metrics.total} (${percentage}%)`,
+      );
     }
-    
+
     if (this.metrics.rate !== undefined) {
       parts.push(`${this.metrics.rate.toFixed(1)}/s`);
     }
-    
+
     if (this.metrics.failed !== undefined && this.metrics.failed > 0) {
       parts.push(`[error] ${this.metrics.failed}`);
     }
-    
+
     if (this.metrics.skipped !== undefined && this.metrics.skipped > 0) {
       parts.push(`⏭️  ${this.metrics.skipped}`);
     }
-    
-    return parts.join(' | ');
+
+    return parts.join(" | ");
   }
 }
 
@@ -179,7 +186,7 @@ export class StatusDisplay {
       this.lines.set(id, new StatusLine({ persistent: true }));
       this.order.push(id);
     }
-    
+
     const line = this.lines.get(id)!;
     line.update(message, metrics);
   }
@@ -190,7 +197,7 @@ export class StatusDisplay {
   removeLine(id: string): void {
     if (this.lines.has(id)) {
       this.lines.delete(id);
-      this.order = this.order.filter(lineId => lineId !== id);
+      this.order = this.order.filter((lineId) => lineId !== id);
     }
   }
 
@@ -201,8 +208,8 @@ export class StatusDisplay {
     // Use ANSI escape codes for Bun compatibility
     const numLines = this.lines.size;
     for (let i = 0; i < numLines; i++) {
-      process.stdout.write('\x1b[1A'); // Move up one line
-      process.stdout.write('\r\x1b[K'); // Clear line
+      process.stdout.write("\x1b[1A"); // Move up one line
+      process.stdout.write("\r\x1b[K"); // Clear line
     }
   }
 
@@ -213,11 +220,11 @@ export class StatusDisplay {
     const elapsed = Date.now() - this.startTime;
     const minutes = Math.floor(elapsed / 60000);
     const seconds = Math.floor((elapsed % 60000) / 1000);
-    
-    console.log('\n[stats] Operation Summary');
-    console.log('─'.repeat(40));
+
+    console.log("\n[stats] Operation Summary");
+    console.log("─".repeat(40));
     console.log(`⏱️  Total time: ${minutes}m ${seconds}s`);
-    
+
     // Add any accumulated metrics
     this.lines.forEach((line, id) => {
       console.log(`   • ${id}: Complete`);
@@ -229,26 +236,39 @@ export class StatusDisplay {
  * Progress status presets
  */
 export const StatusPresets = {
-  scraping: (processed: number, collected: number, filtered: number): StatusMetrics => ({
+  scraping: (
+    processed: number,
+    collected: number,
+    filtered: number,
+  ): StatusMetrics => ({
     total: processed,
     completed: collected,
     skipped: filtered,
-    rate: collected > 0 ? collected / ((Date.now() - Date.now()) / 1000) : 0
+    rate: collected > 0 ? collected / ((Date.now() - Date.now()) / 1000) : 0,
   }),
-  
-  embedding: (current: number, total: number, batchNum: number, totalBatches: number): StatusMetrics => ({
+
+  embedding: (
+    current: number,
+    total: number,
+    batchNum: number,
+    totalBatches: number,
+  ): StatusMetrics => ({
     total,
     completed: current,
     rate: current / ((Date.now() - Date.now()) / 1000),
     batchNumber: batchNum,
-    totalBatches
+    totalBatches,
   }),
-  
-  database: (inserted: number, failed: number, duplicates: number): StatusMetrics => ({
+
+  database: (
+    inserted: number,
+    failed: number,
+    duplicates: number,
+  ): StatusMetrics => ({
     completed: inserted,
     failed,
-    skipped: duplicates
-  })
+    skipped: duplicates,
+  }),
 };
 
 /**
@@ -256,10 +276,10 @@ export const StatusPresets = {
  */
 export async function withStatus<T>(
   message: string,
-  operation: (status: StatusLine) => Promise<T>
+  operation: (status: StatusLine) => Promise<T>,
 ): Promise<T> {
   const status = new StatusLine();
-  
+
   try {
     status.update(message);
     const result = await operation(status);

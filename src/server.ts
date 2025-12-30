@@ -14,5 +14,5 @@ export * from "./server/routes/index.js";
 // Allow running directly
 if (import.meta.main) {
   const { createServer } = await import("./server/index.js");
-  createServer(3000);
+  await createServer(3000);
 }

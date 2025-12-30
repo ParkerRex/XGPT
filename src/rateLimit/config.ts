@@ -11,42 +11,42 @@ export interface RateLimitProfile {
   minDelayMs: number;
   maxDelayMs: number;
   burstCapacity: number;
-  riskLevel: 'low' | 'medium' | 'high';
+  riskLevel: "low" | "medium" | "high";
 }
 
 export const RATE_LIMIT_PROFILES: Record<string, RateLimitProfile> = {
   conservative: {
-    name: 'Conservative',
-    description: 'Safest option - minimal risk of account suspension',
+    name: "Conservative",
+    description: "Safest option - minimal risk of account suspension",
     requestsPerMinute: 2,
     requestsPerHour: 60,
     minDelayMs: 30000, // 30 seconds
     maxDelayMs: 60000, // 60 seconds
     burstCapacity: 3,
-    riskLevel: 'low'
+    riskLevel: "low",
   },
-  
+
   moderate: {
-    name: 'Moderate',
-    description: 'Balanced speed and safety - some risk but faster',
+    name: "Moderate",
+    description: "Balanced speed and safety - some risk but faster",
     requestsPerMinute: 4,
     requestsPerHour: 120,
     minDelayMs: 15000, // 15 seconds
     maxDelayMs: 30000, // 30 seconds
     burstCapacity: 5,
-    riskLevel: 'medium'
+    riskLevel: "medium",
   },
-  
+
   aggressive: {
-    name: 'Aggressive',
-    description: 'Fastest option - higher risk of rate limiting',
+    name: "Aggressive",
+    description: "Fastest option - higher risk of rate limiting",
     requestsPerMinute: 8,
     requestsPerHour: 240,
-    minDelayMs: 7500,  // 7.5 seconds
+    minDelayMs: 7500, // 7.5 seconds
     maxDelayMs: 15000, // 15 seconds
     burstCapacity: 10,
-    riskLevel: 'high'
-  }
+    riskLevel: "high",
+  },
 };
 
 export interface RateLimitConfig {
@@ -68,7 +68,7 @@ export const DEFAULT_CONFIG: RateLimitConfig = {
   jitterPercent: 25,
   enableCircuitBreaker: true,
   circuitBreakerThreshold: 3, // 3 consecutive failures
-  circuitBreakerResetMs: 600000 // 10 minutes
+  circuitBreakerResetMs: 600000, // 10 minutes
 };
 
 export interface RequestLog {
@@ -101,14 +101,14 @@ export const RATE_LIMIT_ERROR_CODES = [
 ];
 
 export const RATE_LIMIT_ERROR_MESSAGES = [
-  'rate limit',
-  'too many requests',
-  'temporarily unavailable',
-  'service unavailable',
-  'unauthorized',
-  'forbidden',
-  'suspended',
-  'locked'
+  "rate limit",
+  "too many requests",
+  "temporarily unavailable",
+  "service unavailable",
+  "unauthorized",
+  "forbidden",
+  "suspended",
+  "locked",
 ];
 
 /**
@@ -137,37 +137,46 @@ export function getAvailableProfiles(): string[] {
  */
 export function getRecommendedMaxTweets(
   profile: RateLimitProfile,
-  maxTimeMinutes: number = 60
+  maxTimeMinutes: number = 60,
 ): number {
   const tweetsPerMinute = profile.requestsPerMinute;
   const recommendedMax = Math.floor(tweetsPerMinute * maxTimeMinutes);
-  
+
   // Cap at reasonable limits
   const caps = {
     conservative: 500,
     moderate: 1000,
-    aggressive: 2000
+    aggressive: 2000,
   };
-  
-  const profileCap = caps[profile.name.toLowerCase() as keyof typeof caps] || 500;
+
+  const profileCap =
+    caps[profile.name.toLowerCase() as keyof typeof caps] || 500;
   return Math.min(recommendedMax, profileCap);
 }
 
 /**
  * Check if an error indicates rate limiting
  */
-export function isRateLimitError(error: any): boolean {
-  if (typeof error === 'object' && error !== null) {
+export function isRateLimitError(error: unknown): boolean {
+  if (typeof error === "object" && error !== null) {
+    const errorObj = error as Record<string, unknown>;
     // Check response code
-    if (error.status && RATE_LIMIT_ERROR_CODES.includes(error.status)) {
+    if (
+      typeof errorObj.status === "number" &&
+      RATE_LIMIT_ERROR_CODES.includes(errorObj.status)
+    ) {
       return true;
     }
-    
+
     // Check error message
-    const message = (error.message || error.toString()).toLowerCase();
-    return RATE_LIMIT_ERROR_MESSAGES.some(pattern => message.includes(pattern));
+    const message = (
+      typeof errorObj.message === "string" ? errorObj.message : String(error)
+    ).toLowerCase();
+    return RATE_LIMIT_ERROR_MESSAGES.some((pattern) =>
+      message.includes(pattern),
+    );
   }
-  
+
   return false;
 }
 
@@ -187,7 +196,7 @@ export function calculateBackoffDelay(
   attempt: number,
   baseDelayMs: number,
   multiplier: number = 2,
-  maxDelayMs: number = 300000
+  maxDelayMs: number = 300000,
 ): number {
   const delay = baseDelayMs * Math.pow(multiplier, attempt);
   return Math.min(delay, maxDelayMs);

@@ -90,10 +90,11 @@ const table = (headers: string[], rows: string[][]) => `...`;
 
 ## Job System
 
-### 10. Make job tracker persistent [P1]
+### 10. ~~Make job tracker persistent~~ [P1] DONE
 **Problem:** Jobs are in-memory only. Lost on server restart.
 **Solution:** Store jobs in SQLite `jobs` table. Load active jobs on startup.
-**Files:** `src/jobs/tracker.ts`, `src/database/schema.ts`
+**Files:** `src/jobs/tracker.ts`, `src/database/schema.ts`, `src/database/queries.ts`
+**Status:** Added `jobs` table with status/progress/metadata columns, `jobQueries` for CRUD operations, and updated `JobTracker` to persist to database and load on server startup. Includes crash recovery (marks stale jobs as failed) and automatic cleanup of old jobs.
 
 ### 11. Add job cancellation [P2]
 **Problem:** No way to stop a running job from the UI.
@@ -147,22 +148,34 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
 
 ## Type Safety
 
-### 17. Remove `any` types [P1]
+### 17. ~~Remove `any` types~~ [P1] DONE
 **Problem:** Several places use `any`:
 - `src/server.ts` - job tracker, user queries
 - `src/jobs/tracker.ts` - metadata
 **Solution:** Add proper types. Use `unknown` with type guards where needed.
-**Files:** `src/server.ts`, `src/jobs/tracker.ts`
+**Files:** `src/server.ts`, `src/jobs/tracker.ts`, `src/errors/handler.ts`, `src/rateLimit/config.ts`, `src/rateLimit/manager.ts`, `src/utils/backoff.ts`, `src/ui/status.ts`, `src/types/common.ts`
+**Status:** Completed. Replaced `any` types with `unknown` and added proper type guards. Created `extractErrorInfo()` helper in error handler for safe error extraction.
 
-### 18. Create shared types between CLI and server [P2]
+### 18. ~~Create shared types between CLI and server~~ [P2] DONE
 **Problem:** Duplicate type definitions for API responses.
 **Solution:** Create `src/types/api.ts` with shared request/response types.
-**Files:** `src/types/api.ts`, `src/server.ts`, `src/commands/*.ts`
+**Files:** `src/types/api.ts`
+**Status:** Completed. Created comprehensive API types including:
+- `TypedCommandResult<T>` - Generic command result with strongly-typed data
+- Command-specific result types: `ScrapeResultData`, `SearchResultData`, `DiscoverResultData`, `AskResultData`, `EmbedResultData`
+- Job types: `JobType`, `JobStatus`, `JobProgress`, `JobResponse`
+- API request types for all endpoints
 
-### 19. Add Zod validation for CLI input [P3]
+### 19. ~~Add TypeBox validation for CLI input~~ [P3] DONE
 **Problem:** CLI args aren't validated beyond Commander's basic checks.
-**Solution:** Add Zod schemas for complex inputs (date ranges, keywords).
-**Files:** `src/cli.ts`, new `src/validation/schemas.ts`
+**Solution:** Add TypeBox schemas for complex inputs (date ranges, keywords). Used TypeBox instead of Zod for consistency with existing Elysia setup.
+**Files:** `src/validation/schemas.ts`, `src/validation/index.ts`
+**Status:** Completed. Created validation module with:
+- Date validation: `DateString`, `DateRange`, `RelativeTimeRange`
+- Keywords validation: `Keyword`, `KeywordList`
+- Username validation with @ stripping
+- Command option schemas: `ScrapeOptions`, `SearchOptions`, `DiscoverOptions`, `AskOptions`, `EmbedOptions`
+- Utility functions: `validate()`, `validateOrThrow()`, `parseRelativeTimeRange()`, `parseDate()`, `parseKeywords()`, `parseUsername()`
 
 ---
 
