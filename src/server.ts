@@ -14,7 +14,8 @@ import {
   initializeDatabase,
   checkDatabaseHealth,
 } from "./database/connection.js";
-import { statsQueries } from "./database/queries.js";
+import { statsQueries, userQueries } from "./database/queries.js";
+import { jobTracker, type Job } from "./jobs/index.js";
 
 // HTML template helper
 const layout = (title: string, content: string) => `
@@ -190,6 +191,96 @@ const layout = (title: string, content: string) => `
       gap: 0.5rem;
     }
     .inline-form input { flex: 1; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    th, td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+    }
+    tr:hover {
+      background: var(--surface-hover);
+    }
+    .verified-badge {
+      color: var(--primary);
+      font-size: 0.75rem;
+    }
+    .bio-text {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .taskbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 0.75rem 2rem;
+      display: none;
+      z-index: 1000;
+    }
+    .taskbar.has-jobs {
+      display: block;
+    }
+    .taskbar-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .job-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+    }
+    .job-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    .job-done {
+      color: var(--success);
+    }
+    .job-failed {
+      color: var(--error);
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .job-progress {
+      width: 100px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .job-progress-bar {
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.3s;
+    }
     .checkbox-group {
       display: flex;
       gap: 1rem;
@@ -226,7 +317,7 @@ const layout = (title: string, content: string) => `
 <body>
   <div class="container">
     <header>
-      <h1>XGPT</h1>
+      <h1><a href="/" style="color: inherit; text-decoration: none;">XGPT</a></h1>
       <nav>
         <a href="/" class="${title === "Dashboard" ? "active" : ""}">Dashboard</a>
         <a href="/scrape" class="${title === "Scrape" ? "active" : ""}">Scrape</a>
@@ -237,6 +328,8 @@ const layout = (title: string, content: string) => `
       </nav>
     </header>
     <main>${content}</main>
+  </div>
+  <div id="taskbar" class="taskbar" hx-get="/api/jobs" hx-trigger="load, every 2s" hx-swap="innerHTML">
   </div>
 </body>
 </html>
@@ -250,11 +343,38 @@ export function createServer(port = 3000) {
     .get("/", async () => {
       const health = checkDatabaseHealth();
       let stats = { users: 0, tweets: 0, embeddings: 0, sessions: 0 };
+      let users: any[] = [];
       try {
         stats = await statsQueries.getOverallStats();
+        users = await userQueries.getAllUsers();
       } catch (e) {
         // DB may not be initialized
       }
+
+      const formatNumber = (n: number | null | undefined): string => {
+        if (n === null || n === undefined) return "-";
+        if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+        if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+        return n.toString();
+      };
+
+      const usersTableRows = users
+        .map(
+          (u) => `
+          <tr>
+            <td>
+              <strong>@${u.username}</strong>
+              ${u.isVerified ? '<span class="verified-badge">[verified]</span>' : ""}
+              ${u.displayName ? `<br><span style="color: var(--text-muted);">${u.displayName}</span>` : ""}
+            </td>
+            <td class="bio-text" title="${u.bio || ""}">${u.bio || "-"}</td>
+            <td>${u.location || "-"}</td>
+            <td>${formatNumber(u.followersCount)}</td>
+            <td>${formatNumber(u.tweetsCount)}</td>
+          </tr>
+        `,
+        )
+        .join("");
 
       return layout(
         "Dashboard",
@@ -307,6 +427,32 @@ export function createServer(port = 3000) {
               Status: ${health ? "Healthy" : "Unhealthy"}
             </div>
           </div>
+        </div>
+
+        <div class="card">
+          <h2>Users (${users.length})</h2>
+          ${
+            users.length > 0
+              ? `
+            <div style="overflow-x: auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Bio</th>
+                    <th>Location</th>
+                    <th>Followers</th>
+                    <th>Tweets</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${usersTableRows}
+                </tbody>
+              </table>
+            </div>
+          `
+              : '<p style="color: var(--text-muted);">No users yet. Use Discover to find profiles or Scrape to add users.</p>'
+          }
         </div>
       `,
       );
@@ -588,7 +734,15 @@ export function createServer(port = 3000) {
     .post(
       "/api/discover",
       async ({ body }) => {
+        const jobId = jobTracker.createJob("discover", { query: body.query });
         try {
+          jobTracker.updateProgress(
+            jobId,
+            0,
+            body.maxResults || 20,
+            `Searching for "${body.query}"...`,
+          );
+
           const result = await discoverCommand({
             query: body.query,
             maxResults: body.maxResults || 20,
@@ -599,6 +753,14 @@ export function createServer(port = 3000) {
           if (result.success && result.data) {
             const profiles = result.data.profiles || [];
             const savedCount = result.data.savedCount || 0;
+
+            jobTracker.updateProgress(
+              jobId,
+              profiles.length,
+              profiles.length,
+              `Found ${profiles.length} profiles`,
+            );
+            jobTracker.completeJob(jobId, true);
 
             const formatNumber = (n: number | undefined): string => {
               if (n === undefined) return "N/A";
@@ -635,8 +797,10 @@ export function createServer(port = 3000) {
               </div>
             `;
           }
+          jobTracker.completeJob(jobId, false);
           return `<div class="result error">${result.error || result.message}</div>`;
         } catch (e: any) {
+          jobTracker.completeJob(jobId, false);
           return `<div class="result error">Error: ${e.message}</div>`;
         }
       },
@@ -728,6 +892,64 @@ export function createServer(port = 3000) {
         }),
       },
     )
+
+    .get("/api/jobs", () => {
+      const jobs = jobTracker.getAllJobs();
+
+      if (jobs.length === 0) {
+        return `<script>document.getElementById('taskbar').classList.remove('has-jobs')</script>`;
+      }
+
+      const formatDuration = (start: Date, end?: Date): string => {
+        const ms = (end || new Date()).getTime() - start.getTime();
+        const seconds = Math.floor(ms / 1000);
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        return `${minutes}m ${seconds % 60}s`;
+      };
+
+      const jobsHtml = jobs
+        .map((job) => {
+          const pct =
+            job.progress.total > 0
+              ? Math.round((job.progress.current / job.progress.total) * 100)
+              : 0;
+
+          let icon = '<div class="job-spinner"></div>';
+          if (job.status === "completed")
+            icon = '<span class="job-done">Done</span>';
+          if (job.status === "failed")
+            icon = '<span class="job-failed">Failed</span>';
+
+          return `
+            <div class="job-item">
+              ${icon}
+              <span><strong>${job.type}</strong></span>
+              <span>${job.progress.message}</span>
+              ${
+                job.progress.total > 0
+                  ? `
+                <div class="job-progress">
+                  <div class="job-progress-bar" style="width: ${pct}%"></div>
+                </div>
+                <span>${job.progress.current}/${job.progress.total}</span>
+              `
+                  : ""
+              }
+              <span style="color: var(--text-muted)">${formatDuration(job.startedAt, job.completedAt)}</span>
+            </div>
+          `;
+        })
+        .join("");
+
+      return `
+        <script>document.getElementById('taskbar').classList.add('has-jobs')</script>
+        <div class="taskbar-content">
+          <span style="color: var(--text-muted)">Jobs:</span>
+          ${jobsHtml}
+        </div>
+      `;
+    })
 
     .post("/api/db/init", async () => {
       try {
