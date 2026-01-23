@@ -13,7 +13,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:github.com)",
       "Bash(bun add:*)",
-      "WebFetch(domain:the-convocation.github.io)"
+      "WebFetch(domain:the-convocation.github.io)",
+      "Bash(cat:*)",
+      "Bash(curl:*)"
     ]
   },
   "enableAllProjectMcpServers": false
