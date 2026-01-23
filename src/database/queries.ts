@@ -1,4 +1,16 @@
-import { eq, desc, and, gte, lte, lt, sql, count, isNull } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  and,
+  gte,
+  lte,
+  lt,
+  sql,
+  count,
+  isNull,
+  asc,
+  inArray,
+} from "drizzle-orm";
 import { db } from "./connection.js";
 import {
   users,
@@ -7,7 +19,9 @@ import {
   scrapeSessions,
   searchTopics,
   searchSessions,
+  discoverSessions,
   tweetSearchOrigins,
+  queryIdCache,
   jobs,
 } from "./schema.js";
 import type {
@@ -21,11 +35,71 @@ import type {
   SearchTopic,
   SearchSession,
   NewSearchSession,
+  DiscoverSession,
+  NewDiscoverSession,
   NewTweetSearchOrigin,
+  QueryIdCacheEntry,
+  NewQueryIdCacheEntry,
   Job,
   NewJob,
 } from "./schema.js";
 import type { PaginationOptions, PaginatedResult } from "../types/common.js";
+
+export interface TweetOriginMetadata {
+  command: string;
+  input: string;
+  cursor?: string;
+  sessionId?: string;
+  fetchedAt: string;
+}
+
+type TweetMetadataRecord = Record<string, unknown>;
+
+function parseMetadata(metadata: unknown): TweetMetadataRecord {
+  if (!metadata) return {};
+  if (typeof metadata === "object") return metadata as TweetMetadataRecord;
+  if (typeof metadata === "string") {
+    try {
+      const parsed = JSON.parse(metadata);
+      return parsed && typeof parsed === "object"
+        ? (parsed as TweetMetadataRecord)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function buildOriginKey(origin: Partial<TweetOriginMetadata>): string {
+  const command = typeof origin.command === "string" ? origin.command : "";
+  const input = typeof origin.input === "string" ? origin.input : "";
+  const cursor = typeof origin.cursor === "string" ? origin.cursor : "";
+  const sessionId =
+    typeof origin.sessionId === "string"
+      ? origin.sessionId
+      : typeof origin.sessionId === "number"
+        ? String(origin.sessionId)
+        : "";
+  return `${command}|${input}|${cursor}|${sessionId}`;
+}
+
+function mergeOriginMetadata(
+  metadata: TweetMetadataRecord,
+  origin: TweetOriginMetadata,
+): { metadata: TweetMetadataRecord; updated: boolean } {
+  const existing = Array.isArray(metadata.origin)
+    ? (metadata.origin as TweetOriginMetadata[])
+    : [];
+  const keySet = new Set(existing.map((item) => buildOriginKey(item)));
+  const originKey = buildOriginKey(origin);
+  if (keySet.has(originKey)) {
+    return { metadata, updated: false };
+  }
+
+  metadata.origin = [...existing, origin];
+  return { metadata, updated: true };
+}
 
 // Profile data for user upsert
 export interface ProfileData {
@@ -192,6 +266,38 @@ export const tweetQueries = {
 
     // Use batch insert for better performance
     await db.insert(tweets).values(tweetData);
+  },
+
+  async upsertTweetWithOrigin(
+    tweetData: NewTweet,
+    origin: TweetOriginMetadata,
+  ): Promise<{ inserted: boolean; originUpdated: boolean }> {
+    const existing = await db
+      .select({ metadata: tweets.metadata })
+      .from(tweets)
+      .where(eq(tweets.id, tweetData.id))
+      .get();
+
+    if (!existing) {
+      const baseMetadata = parseMetadata(tweetData.metadata);
+      const merged = mergeOriginMetadata(baseMetadata, origin);
+      await db.insert(tweets).values({
+        ...tweetData,
+        metadata: JSON.stringify(merged.metadata),
+      });
+      return { inserted: true, originUpdated: merged.updated };
+    }
+
+    const existingMetadata = parseMetadata(existing.metadata);
+    const merged = mergeOriginMetadata(existingMetadata, origin);
+    if (merged.updated) {
+      await db
+        .update(tweets)
+        .set({ metadata: JSON.stringify(merged.metadata) })
+        .where(eq(tweets.id, tweetData.id));
+    }
+
+    return { inserted: false, originUpdated: merged.updated };
   },
 
   // Get tweets by user (excludes soft-deleted)
@@ -440,7 +546,22 @@ export const sessionQueries = {
       .set({
         status,
         completedAt: status === "completed" ? new Date() : undefined,
+        lastUpdatedAt: new Date(),
         ...results,
+      })
+      .where(eq(scrapeSessions.id, sessionId));
+  },
+
+  // Update session fields
+  async updateSession(
+    sessionId: number,
+    updates: Partial<ScrapeSession>,
+  ): Promise<void> {
+    await db
+      .update(scrapeSessions)
+      .set({
+        ...updates,
+        lastUpdatedAt: new Date(),
       })
       .where(eq(scrapeSessions.id, sessionId));
   },
@@ -454,6 +575,17 @@ export const sessionQueries = {
       .limit(limit);
   },
 
+  // Get session by ID
+  async getSessionById(id: number): Promise<ScrapeSession | null> {
+    return (
+      (await db
+        .select()
+        .from(scrapeSessions)
+        .where(eq(scrapeSessions.id, id))
+        .get()) || null
+    );
+  },
+
   // Get sessions by user
   async getSessionsByUser(username: string): Promise<ScrapeSession[]> {
     return await db
@@ -461,6 +593,45 @@ export const sessionQueries = {
       .from(scrapeSessions)
       .where(eq(scrapeSessions.username, username))
       .orderBy(desc(scrapeSessions.startedAt));
+  },
+
+  // Save cursor for resume support
+  async saveCursor(
+    sessionId: number,
+    cursor: string | null,
+    lastTweetId: string | null,
+    pageCount: number,
+  ): Promise<void> {
+    await db
+      .update(scrapeSessions)
+      .set({
+        cursor,
+        lastTweetId,
+        pageCount,
+        lastUpdatedAt: new Date(),
+      })
+      .where(eq(scrapeSessions.id, sessionId));
+  },
+
+  // Get cursor for resume
+  async getCursor(
+    sessionId: number,
+  ): Promise<{ cursor?: string | null; lastTweetId?: string | null } | null> {
+    const session = await db
+      .select({
+        cursor: scrapeSessions.cursor,
+        lastTweetId: scrapeSessions.lastTweetId,
+      })
+      .from(scrapeSessions)
+      .where(eq(scrapeSessions.id, sessionId))
+      .get();
+
+    if (!session) return null;
+    if (!session.cursor && !session.lastTweetId) return null;
+    return {
+      cursor: session.cursor,
+      lastTweetId: session.lastTweetId,
+    };
   },
 };
 
@@ -594,7 +765,10 @@ export const searchSessionQueries = {
   ): Promise<void> {
     await db
       .update(searchSessions)
-      .set(updates)
+      .set({
+        ...updates,
+        lastUpdatedAt: new Date(),
+      })
       .where(eq(searchSessions.id, id));
   },
 
@@ -633,14 +807,17 @@ export const searchSessionQueries = {
   // Save cursor for resume support
   async saveCursor(
     sessionId: number,
-    cursor: string,
-    lastTweetId: string,
+    cursor: string | null,
+    lastTweetId: string | null,
+    pageCount: number,
   ): Promise<void> {
     await db
       .update(searchSessions)
       .set({
         cursor,
         lastTweetId,
+        pageCount,
+        lastUpdatedAt: new Date(),
       })
       .where(eq(searchSessions.id, sessionId));
   },
@@ -648,7 +825,7 @@ export const searchSessionQueries = {
   // Get cursor for resume
   async getCursor(
     sessionId: number,
-  ): Promise<{ cursor: string; lastTweetId: string } | null> {
+  ): Promise<{ cursor?: string | null; lastTweetId?: string | null } | null> {
     const session = await db
       .select({
         cursor: searchSessions.cursor,
@@ -658,13 +835,93 @@ export const searchSessionQueries = {
       .where(eq(searchSessions.id, sessionId))
       .get();
 
-    if (session?.cursor && session?.lastTweetId) {
-      return {
-        cursor: session.cursor,
-        lastTweetId: session.lastTweetId,
-      };
-    }
-    return null;
+    if (!session) return null;
+    if (!session.cursor && !session.lastTweetId) return null;
+    return {
+      cursor: session.cursor,
+      lastTweetId: session.lastTweetId,
+    };
+  },
+};
+
+// Discover session operations
+export const discoverSessionQueries = {
+  // Create discover session
+  async createSession(
+    sessionData: NewDiscoverSession,
+  ): Promise<DiscoverSession> {
+    const [session] = await db
+      .insert(discoverSessions)
+      .values({
+        ...sessionData,
+        startedAt: new Date(),
+      })
+      .returning();
+    return session!;
+  },
+
+  // Update session
+  async updateSession(
+    id: number,
+    updates: Partial<DiscoverSession>,
+  ): Promise<void> {
+    await db
+      .update(discoverSessions)
+      .set({
+        ...updates,
+        lastUpdatedAt: new Date(),
+      })
+      .where(eq(discoverSessions.id, id));
+  },
+
+  // Get session by ID
+  async getSessionById(id: number): Promise<DiscoverSession | null> {
+    return (
+      (await db
+        .select()
+        .from(discoverSessions)
+        .where(eq(discoverSessions.id, id))
+        .get()) || null
+    );
+  },
+
+  // Save cursor for resume support
+  async saveCursor(
+    sessionId: number,
+    cursor: string | null,
+    lastProfileId: string | null,
+    pageCount: number,
+  ): Promise<void> {
+    await db
+      .update(discoverSessions)
+      .set({
+        cursor,
+        lastProfileId,
+        pageCount,
+        lastUpdatedAt: new Date(),
+      })
+      .where(eq(discoverSessions.id, sessionId));
+  },
+
+  // Get cursor for resume
+  async getCursor(
+    sessionId: number,
+  ): Promise<{ cursor?: string | null; lastProfileId?: string | null } | null> {
+    const session = await db
+      .select({
+        cursor: discoverSessions.cursor,
+        lastProfileId: discoverSessions.lastProfileId,
+      })
+      .from(discoverSessions)
+      .where(eq(discoverSessions.id, sessionId))
+      .get();
+
+    if (!session) return null;
+    if (!session.cursor && !session.lastProfileId) return null;
+    return {
+      cursor: session.cursor,
+      lastProfileId: session.lastProfileId,
+    };
   },
 };
 
@@ -718,6 +975,125 @@ export const tweetOriginQueries = {
       breakdown[row.variant] = row.count;
     }
     return breakdown;
+  },
+};
+
+// Query ID cache operations
+export const queryIdCacheQueries = {
+  async getEntry(
+    operationName: string,
+    featureSignature: string,
+  ): Promise<QueryIdCacheEntry | null> {
+    return (
+      (await db
+        .select()
+        .from(queryIdCache)
+        .where(
+          and(
+            eq(queryIdCache.operationName, operationName),
+            eq(queryIdCache.featureSignature, featureSignature),
+          ),
+        )
+        .get()) || null
+    );
+  },
+
+  async upsertEntry(
+    entry: NewQueryIdCacheEntry,
+  ): Promise<QueryIdCacheEntry> {
+    const existing = await this.getEntry(
+      entry.operationName,
+      entry.featureSignature,
+    );
+
+    if (existing) {
+      const [updated] = await db
+        .update(queryIdCache)
+        .set({
+          queryId: entry.queryId,
+          source: entry.source,
+          fetchedAt: entry.fetchedAt,
+          expiresAt: entry.expiresAt,
+          lastUsedAt: entry.lastUsedAt,
+          useCount: (existing.useCount ?? 0) + 1,
+          status: entry.status,
+          error: entry.error ?? null,
+        })
+        .where(eq(queryIdCache.id, existing.id))
+        .returning();
+      return updated!;
+    }
+
+    const [created] = await db
+      .insert(queryIdCache)
+      .values({
+        ...entry,
+        useCount: entry.useCount ?? 1,
+      })
+      .returning();
+    return created!;
+  },
+
+  async recordUsage(id: number): Promise<void> {
+    await db
+      .update(queryIdCache)
+      .set({
+        lastUsedAt: new Date(),
+        useCount: sql`${queryIdCache.useCount} + 1`,
+      })
+      .where(eq(queryIdCache.id, id));
+  },
+
+  async markInvalid(
+    operationName: string,
+    featureSignature: string,
+    errorMessage: string,
+  ): Promise<void> {
+    await db
+      .update(queryIdCache)
+      .set({
+        status: "invalid",
+        error: errorMessage,
+        expiresAt: new Date(),
+      })
+      .where(
+        and(
+          eq(queryIdCache.operationName, operationName),
+          eq(queryIdCache.featureSignature, featureSignature),
+        ),
+      );
+  },
+
+  async clearAll(): Promise<number> {
+    const result = await db.delete(queryIdCache);
+    return result.changes || 0;
+  },
+
+  async countEntries(): Promise<number> {
+    const [result] = await db
+      .select({ count: count() })
+      .from(queryIdCache);
+    return result?.count ?? 0;
+  },
+
+  async pruneOldest(maxEntries: number): Promise<number> {
+    const total = await this.countEntries();
+    if (total <= maxEntries) return 0;
+
+    const toRemove = total - maxEntries;
+    const ids = await db
+      .select({ id: queryIdCache.id })
+      .from(queryIdCache)
+      .orderBy(asc(queryIdCache.lastUsedAt))
+      .limit(toRemove);
+
+    const idList = ids.map((row) => row.id);
+    if (idList.length === 0) return 0;
+
+    const result = await db
+      .delete(queryIdCache)
+      .where(inArray(queryIdCache.id, idList));
+    return result.changes || 0;
   },
 };
 

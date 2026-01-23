@@ -25,6 +25,11 @@ xgpt search "terms"           # Search tweets by topic/phrase
 xgpt users discover "query"   # Find Twitter profiles by bio/name
 xgpt embed                    # Generate embeddings
 xgpt ask "question"           # Semantic search + GPT answer
+xgpt read <tweet>             # Fetch a single tweet by ID or URL
+xgpt thread <tweet>           # Fetch the author thread for a tweet
+xgpt replies <tweet>          # Fetch replies to a tweet
+xgpt user-tweets <username>   # Fetch a user timeline
+xgpt mentions --user <name>   # Fetch tweets mentioning a user
 xgpt serve                    # Start web UI
 xgpt db --stats               # Database stats
 xgpt config list              # Show config
@@ -97,6 +102,9 @@ xgpt users discover "AI researcher" --max 50
 
 # Output as JSON
 xgpt users discover "indie hacker" --json
+
+# Script-friendly output (stable JSON envelope)
+xgpt search "AGI, GPT-5" --script
 ```
 
 Discovered profiles can be saved to the database with `--save`, storing bio, location, follower counts, and verification status.

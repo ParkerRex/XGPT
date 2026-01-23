@@ -3,6 +3,7 @@
  * Provides real-time status updates without blocking the UI
  */
 
+import { shouldShowProgress } from "../utils/scriptMode.js";
 export interface StatusLineOptions {
   // Display options
   prefix?: string;
@@ -58,6 +59,7 @@ export class StatusLine {
    * Update status with new metrics
    */
   update(message: string, metrics?: StatusMetrics): void {
+    if (!shouldShowProgress()) return;
     if (metrics) {
       Object.assign(this.metrics, metrics);
     }
@@ -81,6 +83,7 @@ export class StatusLine {
    * Clear the current status line
    */
   clear(): void {
+    if (!shouldShowProgress()) return;
     // Use ANSI escape codes for Bun compatibility
     this.stream.write("\r\x1b[K");
   }
@@ -89,6 +92,7 @@ export class StatusLine {
    * Finalize with a permanent message
    */
   done(message?: string): void {
+    if (!shouldShowProgress()) return;
     this.clear();
     if (message) {
       this.stream.write(message + "\n");
@@ -182,6 +186,7 @@ export class StatusDisplay {
    * Add or update a status line
    */
   updateLine(id: string, message: string, metrics?: StatusMetrics): void {
+    if (!shouldShowProgress()) return;
     if (!this.lines.has(id)) {
       this.lines.set(id, new StatusLine({ persistent: true }));
       this.order.push(id);
@@ -195,6 +200,7 @@ export class StatusDisplay {
    * Remove a status line
    */
   removeLine(id: string): void {
+    if (!shouldShowProgress()) return;
     if (this.lines.has(id)) {
       this.lines.delete(id);
       this.order = this.order.filter((lineId) => lineId !== id);
@@ -205,6 +211,7 @@ export class StatusDisplay {
    * Clear all status lines
    */
   clear(): void {
+    if (!shouldShowProgress()) return;
     // Use ANSI escape codes for Bun compatibility
     const numLines = this.lines.size;
     for (let i = 0; i < numLines; i++) {
@@ -217,6 +224,7 @@ export class StatusDisplay {
    * Display summary
    */
   summary(): void {
+    if (!shouldShowProgress()) return;
     const elapsed = Date.now() - this.startTime;
     const minutes = Math.floor(elapsed / 60000);
     const seconds = Math.floor((elapsed % 60000) / 1000);

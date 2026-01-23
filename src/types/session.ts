@@ -27,7 +27,7 @@ export interface SessionConfig {
   embeddingModel: string;
 
   // Output preferences
-  outputFormat: 'json' | 'csv' | 'markdown';
+  outputFormat: 'json' | 'jsonl' | 'csv' | 'markdown' | 'txt';
   outputFile?: string;
 }
 

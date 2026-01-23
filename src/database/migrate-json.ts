@@ -3,6 +3,7 @@
 import { readFile, copyFile } from "fs/promises";
 import { existsSync } from "fs";
 import * as cliProgress from "cli-progress";
+import { shouldShowProgress } from "../utils/scriptMode.js";
 import {
   userQueries,
   tweetQueries,
@@ -271,16 +272,18 @@ async function migrateTweets(
 ): Promise<void> {
   console.log(`[scrape] Migrating ${tweets.length} tweets to SQLite...`);
 
-  // Create progress bar
-  const progressBar = new cliProgress.SingleBar({
-    format:
-      "[scrape] Tweets |{bar}| {percentage}% | {value}/{total} | Users: {users} | ETA: {eta}s",
-    barCompleteChar: "\u2588",
-    barIncompleteChar: "\u2591",
-    hideCursor: true,
-  });
+  const showProgress = shouldShowProgress();
+  const progressBar = showProgress
+    ? new cliProgress.SingleBar({
+        format:
+          "[scrape] Tweets |{bar}| {percentage}% | {value}/{total} | Users: {users} | ETA: {eta}s",
+        barCompleteChar: "\u2588",
+        barIncompleteChar: "\u2591",
+        hideCursor: true,
+      })
+    : null;
 
-  progressBar.start(tweets.length, 0, { users: 0 });
+  progressBar?.start(tweets.length, 0, { users: 0 });
 
   try {
     // Process tweets in batches
@@ -353,15 +356,15 @@ async function migrateTweets(
       }
 
       processedCount += batch.length;
-      progressBar.update(processedCount, { users: stats.usersCreated });
+      progressBar?.update(processedCount, { users: stats.usersCreated });
     }
 
-    progressBar.stop();
+    progressBar?.stop();
     console.log(
       `[ok] Successfully migrated ${stats.tweetsInserted} tweets (${stats.usersCreated} users created)\n`,
     );
   } catch (error) {
-    progressBar.stop();
+    progressBar?.stop();
     throw error;
   }
 }
@@ -376,16 +379,18 @@ async function migrateEmbeddings(
 ): Promise<void> {
   console.log(`[embed] Migrating ${embeddings.length} embeddings to SQLite...`);
 
-  // Create progress bar
-  const progressBar = new cliProgress.SingleBar({
-    format:
-      "[embed] Embeddings |{bar}| {percentage}% | {value}/{total} | Dims: {dims} | ETA: {eta}s",
-    barCompleteChar: "\u2588",
-    barIncompleteChar: "\u2591",
-    hideCursor: true,
-  });
+  const showProgress = shouldShowProgress();
+  const progressBar = showProgress
+    ? new cliProgress.SingleBar({
+        format:
+          "[embed] Embeddings |{bar}| {percentage}% | {value}/{total} | Dims: {dims} | ETA: {eta}s",
+        barCompleteChar: "\u2588",
+        barIncompleteChar: "\u2591",
+        hideCursor: true,
+      })
+    : null;
 
-  progressBar.start(embeddings.length, 0, { dims: 0 });
+  progressBar?.start(embeddings.length, 0, { dims: 0 });
 
   try {
     // Process embeddings in batches
@@ -442,15 +447,15 @@ async function migrateEmbeddings(
       }
 
       processedCount += batch.length;
-      progressBar.update(processedCount, { dims: vectorDimensions });
+      progressBar?.update(processedCount, { dims: vectorDimensions });
     }
 
-    progressBar.stop();
+    progressBar?.stop();
     console.log(
       `[ok] Successfully migrated ${stats.embeddingsInserted} embeddings (${vectorDimensions}D vectors)\n`,
     );
   } catch (error) {
-    progressBar.stop();
+    progressBar?.stop();
     throw error;
   }
 }

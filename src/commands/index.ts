@@ -6,6 +6,13 @@ export { interactiveCommand } from "./interactive.js";
 export { searchCommand } from "./search.js";
 export { discoverCommand } from "./users.js";
 export {
+  readCommand,
+  threadCommand,
+  repliesCommand,
+  userTweetsCommand,
+  mentionsCommand,
+} from "./timeline.js";
+export {
   listConfigCommand,
   getConfigCommand,
   setConfigCommand,

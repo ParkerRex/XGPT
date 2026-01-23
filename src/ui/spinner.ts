@@ -3,6 +3,7 @@
  * Used when the total duration or items are unknown
  */
 
+import { shouldShowProgress } from "../utils/scriptMode.js";
 export interface SpinnerOptions {
   text?: string;
   spinner?: string[];
@@ -58,6 +59,7 @@ export class Spinner {
    * Start the spinner
    */
   start(text?: string): void {
+    if (!shouldShowProgress()) return;
     if (this.isSpinning) return;
 
     if (text) {
@@ -76,6 +78,7 @@ export class Spinner {
    * Update spinner text
    */
   update(text: string): void {
+    if (!shouldShowProgress()) return;
     this.options.text = text;
     if (this.isSpinning) {
       this.clear();
@@ -87,6 +90,7 @@ export class Spinner {
    * Stop the spinner with a final message
    */
   stop(finalText?: string, symbol?: string): void {
+    if (!shouldShowProgress()) return;
     if (!this.isSpinning) return;
 
     this.isSpinning = false;

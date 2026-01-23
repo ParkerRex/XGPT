@@ -200,16 +200,33 @@ export class Logger {
   }
 }
 
+const registeredLoggers = new Set<Logger>();
+
+function registerLogger(loggerInstance: Logger): void {
+  registeredLoggers.add(loggerInstance);
+}
+
+/**
+ * Set log level for all registered logger instances.
+ */
+export function setGlobalLogLevel(level: LogLevel): void {
+  registeredLoggers.forEach((loggerInstance) => {
+    loggerInstance.setLevel(level);
+  });
+}
+
 /**
  * Create a logger instance with optional namespace
  */
 export function createLogger(
   namespaceOrOptions?: string | LoggerOptions,
 ): Logger {
-  if (typeof namespaceOrOptions === "string") {
-    return new Logger({ namespace: namespaceOrOptions });
-  }
-  return new Logger(namespaceOrOptions);
+  const loggerInstance =
+    typeof namespaceOrOptions === "string"
+      ? new Logger({ namespace: namespaceOrOptions })
+      : new Logger(namespaceOrOptions);
+  registerLogger(loggerInstance);
+  return loggerInstance;
 }
 
 // Default logger instance

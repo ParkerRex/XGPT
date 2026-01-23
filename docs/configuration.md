@@ -68,7 +68,7 @@ query: {
 
 ```typescript
 output: {
-  format: 'json' | 'csv' | 'markdown' | 'txt';  // Default: 'json'
+  format: 'json' | 'jsonl' | 'csv' | 'markdown' | 'txt';  // Default: 'json'
   includeMetadata: boolean;                      // Default: true
   timestampFormat: 'iso' | 'relative' | 'human'; // Default: 'human'
 }
@@ -92,6 +92,8 @@ advanced: {
   databasePath?: string;     // Custom database path
   cacheEnabled: boolean;     // Default: true
   cacheTtlHours: number;     // Default: 24
+  queryIdCacheMaxEntries: number;        // Default: 200
+  queryIdCacheSnapshotEnabled: boolean;  // Default: true
   backupEnabled: boolean;    // Default: true
   maxBackupFiles: number;    // Default: 5
 }
@@ -237,6 +239,8 @@ const config: UserConfig = await loadConfig();
 | `advanced.databasePath` | string | data/xgpt.db | Database location |
 | `advanced.cacheEnabled` | boolean | true | Enable caching |
 | `advanced.cacheTtlHours` | number | 24 | Cache lifetime |
+| `advanced.queryIdCacheMaxEntries` | number | 200 | Max cached query IDs |
+| `advanced.queryIdCacheSnapshotEnabled` | boolean | true | Use snapshot fallback for query IDs |
 | `advanced.backupEnabled` | boolean | true | Auto backups |
 | `advanced.maxBackupFiles` | number | 5 | Max backup files |
 
@@ -253,9 +257,10 @@ const CONFIG_VALIDATION = {
   'embedding.batchSize': { min: 1, max: 2000 },
   'query.defaultTopK': { min: 1, max: 50 },
   'query.defaultThreshold': { min: 0, max: 1 },
-  'output.format': ['json', 'csv', 'markdown', 'txt'],
+  'output.format': ['json', 'jsonl', 'csv', 'markdown', 'txt'],
   'output.timestampFormat': ['iso', 'relative', 'human'],
   'advanced.cacheTtlHours': { min: 1, max: 168 },
+  'advanced.queryIdCacheMaxEntries': { min: 10, max: 2000 },
   'advanced.maxBackupFiles': { min: 1, max: 50 }
 };
 ```

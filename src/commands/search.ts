@@ -23,6 +23,15 @@ import {
   waitForRateLimitReset,
   type DateRange,
 } from "../utils/searchUtils.js";
+import { createQueryIdCacheTransform } from "../twitter/queryIdCache.js";
+import { shouldShowProgress } from "../utils/scriptMode.js";
+import {
+  compareTweetIds,
+  parseCursorState,
+  redactCursor,
+  serializeCursorState,
+  waitForPageDelay,
+} from "../utils/pagination.js";
 import {
   userQueries,
   tweetQueries,
@@ -48,7 +57,7 @@ export async function searchCommand(
 
   // Handle resume mode
   if (options.resume) {
-    return resumeSearch(options.resume);
+    return resumeSearch(options.resume, options);
   }
 
   // Validate input
@@ -141,6 +150,7 @@ export async function searchCommand(
       totalProcessed: stats.totalProcessed,
       duplicatesSkipped: stats.duplicatesSkipped,
       usersCreated: stats.usersCreated,
+      pageCount: stats.pageCount ?? 0,
       status: "completed",
       completedAt: new Date(),
     });
@@ -170,6 +180,7 @@ async function executeSearch(
   queries: string[],
   variants: string[],
   options: SearchOptions,
+  resumeState?: { skipBeforeId?: string | null },
 ): Promise<SearchStats> {
   const stats: SearchStats = {
     tweetsCollected: 0,
@@ -208,6 +219,7 @@ async function executeSearch(
   // Initialize scraper
   const scraper = new Scraper({
     rateLimitStrategy: customRateLimitStrategy,
+    transform: createQueryIdCacheTransform(),
     experimental: {
       xClientTransactionId: true,
       xpff: true,
@@ -217,10 +229,22 @@ async function executeSearch(
 
   const searchMode =
     options.mode === "top" ? SearchMode.Top : SearchMode.Latest;
-  const maxPerQuery = Math.ceil(options.maxTweets / queries.length);
+  const effectiveMaxTweets = options.all
+    ? Number.MAX_SAFE_INTEGER
+    : options.maxTweets;
+  const pageSize = 50;
+  const cursorState = parseCursorState(options.cursor);
+  const startQueryIndex = cursorState?.queryIndex ?? 0;
+  let nextCursor: string | null = null;
+  let lastTweetId: string | null = resumeState?.skipBeforeId ?? null;
+  let pageCount = 0;
 
-  for (let queryIndex = 0; queryIndex < queries.length; queryIndex++) {
+  for (let queryIndex = startQueryIndex; queryIndex < queries.length; queryIndex++) {
     const query = queries[queryIndex]!;
+    let cursor =
+      queryIndex === startQueryIndex
+        ? cursorState?.cursor ?? undefined
+        : undefined;
 
     if (queries.length > 1) {
       console.log(
@@ -229,92 +253,119 @@ async function executeSearch(
     }
 
     try {
-      for await (const tweet of scraper.searchTweets(
-        query,
-        maxPerQuery,
-        searchMode,
-      )) {
-        stats.totalProcessed++;
+      while (stats.tweetsCollected < effectiveMaxTweets) {
+        if (options.maxPages && pageCount >= options.maxPages) break;
 
-        // Update live counter (every tweet)
-        updateProgress(stats, options.maxTweets);
-
-        // Skip unavailable tweets silently
-        if (!tweet.id || !tweet.text) continue;
-
-        // Check for duplicate (pre-existing only)
-        const exists = await tweetQueries.tweetExists(tweet.id);
-        if (exists) {
-          stats.duplicatesSkipped++;
-          // Still record origin if this is a new search that found an existing tweet
-          continue;
-        }
-
-        // Create user if needed (basic profile from tweet metadata)
-        const username = tweet.username ?? "unknown";
-        const user = await userQueries.upsertUser(
-          username,
-          tweet.name ?? undefined,
+        const remaining = effectiveMaxTweets - stats.tweetsCollected;
+        const maxPerPage = Math.min(pageSize, remaining);
+        const response = await scraper.fetchSearchTweets(
+          query,
+          maxPerPage,
+          searchMode,
+          cursor,
         );
-        if (user.createdAt && user.createdAt.getTime() > Date.now() - 1000) {
-          stats.usersCreated++;
-        }
 
-        // Save tweet
-        const dbTweet: NewTweet = {
-          id: tweet.id,
-          text: (tweet.text ?? "").replace(/\s+/g, " ").trim(),
-          userId: user.id,
-          username: username,
-          createdAt: tweet.timeParsed ?? new Date(),
-          isRetweet: tweet.isRetweet ?? false,
-          isReply: tweet.isReply ?? false,
-          likes: tweet.likes ?? 0,
-          retweets: tweet.retweets ?? 0,
-          replies: tweet.replies ?? 0,
-          metadata: JSON.stringify({
-            isQuoted: tweet.isQuoted,
-            quotedStatus: tweet.quotedStatus?.id,
-            conversationId: tweet.conversationId,
-          }),
-        };
+        pageCount++;
+        const tweets = response.tweets ?? [];
 
-        try {
-          await tweetQueries.insertTweets([dbTweet]);
-        } catch (insertError) {
-          // Handle duplicate constraint errors silently
+        for (const tweet of tweets) {
+          stats.totalProcessed++;
+
+          // Update live counter (every tweet)
+          updateProgress(stats, effectiveMaxTweets);
+
+          // Skip unavailable tweets silently
+          if (!tweet.id || !tweet.text) continue;
+
           if (
-            insertError instanceof Error &&
-            insertError.message.includes("UNIQUE constraint")
+            resumeState?.skipBeforeId &&
+            compareTweetIds(tweet.id, resumeState.skipBeforeId) <= 0
           ) {
-            stats.duplicatesSkipped++;
             continue;
           }
-          throw insertError;
-        }
 
-        // Record origin (first-origin-only via UNIQUE constraint)
-        const matchedVariant =
-          matchVariant(tweet.text, variants) ?? variants[0]!;
-        await tweetOriginQueries.recordTweetOrigin({
-          tweetId: tweet.id,
-          searchSessionId: session.id,
-          matchedVariant,
-        });
+          // Check for duplicate (pre-existing only)
+          const exists = await tweetQueries.tweetExists(tweet.id);
+          if (exists) {
+            stats.duplicatesSkipped++;
+            // Still record origin if this is a new search that found an existing tweet
+            continue;
+          }
 
-        stats.tweetsCollected++;
-
-        // Save cursor periodically for resume support (every 50 tweets)
-        if (stats.totalProcessed % 50 === 0) {
-          await searchSessionQueries.saveCursor(
-            session.id,
-            "", // Twitter's searchTweets doesn't expose cursor directly
-            tweet.id,
+          // Create user if needed (basic profile from tweet metadata)
+          const username = tweet.username ?? "unknown";
+          const user = await userQueries.upsertUser(
+            username,
+            tweet.name ?? undefined,
           );
+          if (user.createdAt && user.createdAt.getTime() > Date.now() - 1000) {
+            stats.usersCreated++;
+          }
+
+          // Save tweet
+          const dbTweet: NewTweet = {
+            id: tweet.id,
+            text: (tweet.text ?? "").replace(/\s+/g, " ").trim(),
+            userId: user.id,
+            username: username,
+            createdAt: tweet.timeParsed ?? new Date(),
+            isRetweet: tweet.isRetweet ?? false,
+            isReply: tweet.isReply ?? false,
+            likes: tweet.likes ?? 0,
+            retweets: tweet.retweets ?? 0,
+            replies: tweet.replies ?? 0,
+            metadata: JSON.stringify({
+              isQuoted: tweet.isQuoted,
+              quotedStatus: tweet.quotedStatus?.id,
+              conversationId: tweet.conversationId,
+            }),
+          };
+
+          try {
+            await tweetQueries.insertTweets([dbTweet]);
+          } catch (insertError) {
+            // Handle duplicate constraint errors silently
+            if (
+              insertError instanceof Error &&
+              insertError.message.includes("UNIQUE constraint")
+            ) {
+              stats.duplicatesSkipped++;
+              continue;
+            }
+            throw insertError;
+          }
+
+          // Record origin (first-origin-only via UNIQUE constraint)
+          const matchedVariant =
+            matchVariant(tweet.text, variants) ?? variants[0]!;
+          await tweetOriginQueries.recordTweetOrigin({
+            tweetId: tweet.id,
+            searchSessionId: session.id,
+            matchedVariant,
+          });
+
+          stats.tweetsCollected++;
+          lastTweetId = tweet.id;
+
+          // Check if we've hit max
+          if (stats.tweetsCollected >= effectiveMaxTweets) break;
         }
 
-        // Check if we've hit max
-        if (stats.tweetsCollected >= options.maxTweets) break;
+        cursor = response.next;
+        nextCursor = cursor ?? null;
+
+        await searchSessionQueries.saveCursor(
+          session.id,
+          serializeCursorState({ queryIndex, cursor: cursor ?? null }),
+          lastTweetId,
+          pageCount,
+        );
+
+        if (!cursor) break;
+        if (options.maxPages && pageCount >= options.maxPages) break;
+        if (stats.tweetsCollected >= effectiveMaxTweets) break;
+
+        await waitForPageDelay(options.delayMs);
       }
     } catch (error) {
       if (isRateLimitError(error)) {
@@ -331,18 +382,36 @@ async function executeSearch(
     }
 
     // Check if we've hit max after this query
-    if (stats.tweetsCollected >= options.maxTweets) break;
+    if (stats.tweetsCollected >= effectiveMaxTweets) break;
+    if (options.maxPages && pageCount >= options.maxPages) break;
+
+    if (queryIndex < queries.length - 1) {
+      await searchSessionQueries.saveCursor(
+        session.id,
+        serializeCursorState({ queryIndex: queryIndex + 1, cursor: null }),
+        lastTweetId,
+        pageCount,
+      );
+    }
   }
 
-  // Clear progress line
-  process.stdout.write("\r" + " ".repeat(80) + "\r");
+  clearProgressLine();
 
+  stats.pageCount = pageCount;
+  stats.nextCursor = nextCursor;
+  stats.lastTweetId = lastTweetId;
   return stats;
 }
 
 function updateProgress(stats: SearchStats, max: number): void {
+  if (!shouldShowProgress()) return;
   const line = `[search] ${stats.totalProcessed}/${max} tweets (${stats.tweetsCollected} new, ${stats.duplicatesSkipped} duplicates)`;
   process.stdout.write(`\r${line}`);
+}
+
+function clearProgressLine(): void {
+  if (!shouldShowProgress()) return;
+  process.stdout.write("\r" + " ".repeat(80) + "\r");
 }
 
 function formatResults(stats: SearchStats, asJson: boolean): CommandResult {
@@ -368,6 +437,15 @@ Suggestions:
 
   const message = `[ok] Search complete: ${stats.tweetsCollected} new tweets, ${stats.duplicatesSkipped} duplicates, ${stats.usersCreated} users created`;
   console.log(message);
+  if (stats.sessionId) {
+    console.log(`[stats] Session: ${stats.sessionId}`);
+  }
+  if (stats.pageCount !== undefined) {
+    console.log(`[stats] Pages: ${stats.pageCount}`);
+  }
+  if (stats.nextCursor !== undefined) {
+    console.log(`[stats] Next cursor: ${redactCursor(stats.nextCursor)}`);
+  }
 
   return {
     success: true,
@@ -432,7 +510,10 @@ async function handleCleanup(olderThan?: string): Promise<CommandResult> {
   }
 }
 
-async function resumeSearch(sessionId: number): Promise<CommandResult> {
+async function resumeSearch(
+  sessionId: number,
+  options: SearchOptions,
+): Promise<CommandResult> {
   const session = await searchSessionQueries.getSessionById(sessionId);
   if (!session) {
     return { success: false, message: `Search session ${sessionId} not found` };
@@ -446,7 +527,7 @@ async function resumeSearch(sessionId: number): Promise<CommandResult> {
   }
 
   const cursorData = await searchSessionQueries.getCursor(sessionId);
-  if (!cursorData) {
+  if (!cursorData && !options.fresh && !options.cursor) {
     return {
       success: false,
       message: `No cursor saved for session ${sessionId}. Cannot resume.`,
@@ -481,6 +562,10 @@ async function resumeSearch(sessionId: number): Promise<CommandResult> {
   console.log(
     `[info] Progress: ${stats.tweetsCollected}/${session.maxTweets} tweets collected`,
   );
+  const parsedCursor = parseCursorState(cursorData?.cursor ?? null);
+  if (parsedCursor?.cursor) {
+    console.log(`[info] Saved cursor: ${redactCursor(parsedCursor.cursor)}`);
+  }
 
   // Set up cookies for authentication
   const cookies = [
@@ -512,6 +597,7 @@ async function resumeSearch(sessionId: number): Promise<CommandResult> {
   // Initialize scraper
   const scraper = new Scraper({
     rateLimitStrategy: customRateLimitStrategy,
+    transform: createQueryIdCacheTransform(),
     experimental: {
       xClientTransactionId: true,
       xpff: true,
@@ -521,115 +607,55 @@ async function resumeSearch(sessionId: number): Promise<CommandResult> {
 
   const searchMode =
     session.searchMode === "Top" ? SearchMode.Top : SearchMode.Latest;
-  const remainingTweets = session.maxTweets - stats.tweetsCollected;
+  const resumeOptions: SearchOptions = {
+    ...options,
+    query: session.query,
+    maxTweets: session.maxTweets,
+    mode: session.searchMode === "Top" ? "top" : "latest",
+    dryRun: false,
+    json: options.json,
+    cursor:
+      options.cursor ?? (options.fresh ? undefined : cursorData?.cursor),
+  };
 
-  // Resume from cursor position
-  for (const query of twitterQueries) {
-    try {
-      for await (const tweet of scraper.searchTweets(
-        query,
-        remainingTweets,
-        searchMode,
-      )) {
-        // Skip tweets we've already processed (before cursor)
-        if (tweet.id && tweet.id <= cursorData.lastTweetId) {
-          continue;
-        }
-
-        stats.totalProcessed++;
-        updateProgress(stats, session.maxTweets);
-
-        // Skip unavailable tweets silently
-        if (!tweet.id || !tweet.text) continue;
-
-        // Check for duplicate (pre-existing only)
-        const exists = await tweetQueries.tweetExists(tweet.id);
-        if (exists) {
-          stats.duplicatesSkipped++;
-          continue;
-        }
-
-        // Create user if needed
-        const username = tweet.username ?? "unknown";
-        const user = await userQueries.upsertUser(
-          username,
-          tweet.name ?? undefined,
-        );
-        if (user.createdAt && user.createdAt.getTime() > Date.now() - 1000) {
-          stats.usersCreated++;
-        }
-
-        // Save tweet
-        const dbTweet: NewTweet = {
-          id: tweet.id,
-          text: (tweet.text ?? "").replace(/\s+/g, " ").trim(),
-          userId: user.id,
-          username: username,
-          createdAt: tweet.timeParsed ?? new Date(),
-          isRetweet: tweet.isRetweet ?? false,
-          isReply: tweet.isReply ?? false,
-          likes: tweet.likes ?? 0,
-          retweets: tweet.retweets ?? 0,
-          replies: tweet.replies ?? 0,
-        };
-
-        try {
-          await tweetQueries.insertTweets([dbTweet]);
-        } catch (insertError) {
-          if (
-            insertError instanceof Error &&
-            insertError.message.includes("UNIQUE constraint")
-          ) {
-            stats.duplicatesSkipped++;
-            continue;
-          }
-          throw insertError;
-        }
-
-        // Record origin
-        const matchedVariant =
-          matchVariant(tweet.text, variants) ?? variants[0]!;
-        await tweetOriginQueries.recordTweetOrigin({
-          tweetId: tweet.id,
-          searchSessionId: sessionId,
-          matchedVariant,
-        });
-
-        stats.tweetsCollected++;
-
-        // Save cursor periodically
-        if (stats.totalProcessed % 50 === 0) {
-          await searchSessionQueries.saveCursor(sessionId, "", tweet.id);
-        }
-
-        if (stats.tweetsCollected >= session.maxTweets) break;
-      }
-    } catch (error) {
-      if (isRateLimitError(error)) {
-        console.log("\n[warn] Rate limited. Waiting for reset...");
-        await waitForRateLimitReset(error);
-        continue;
-      }
-      console.error(`\n[error] Error processing tweet: ${error}`);
-      continue;
-    }
+  if (options.fresh) {
+    stats.tweetsCollected = 0;
+    stats.totalProcessed = 0;
+    stats.duplicatesSkipped = 0;
+    stats.usersCreated = 0;
+    await searchSessionQueries.updateSession(sessionId, {
+      tweetsCollected: 0,
+      totalProcessed: 0,
+      duplicatesSkipped: 0,
+      usersCreated: 0,
+    });
   }
 
-  // Clear progress line
-  process.stdout.write("\r" + " ".repeat(80) + "\r");
+  const resumeStats = await executeSearch(
+    session,
+    twitterQueries,
+    variants,
+    resumeOptions,
+    options.fresh || options.cursor
+      ? undefined
+      : { skipBeforeId: cursorData?.lastTweetId ?? null },
+  );
+
+  clearProgressLine();
 
   // Update session with final results
   await searchSessionQueries.updateSession(sessionId, {
-    tweetsCollected: stats.tweetsCollected,
-    totalProcessed: stats.totalProcessed,
-    duplicatesSkipped: stats.duplicatesSkipped,
-    usersCreated: stats.usersCreated,
+    tweetsCollected: resumeStats.tweetsCollected,
+    totalProcessed: resumeStats.totalProcessed,
+    duplicatesSkipped: resumeStats.duplicatesSkipped,
+    usersCreated: resumeStats.usersCreated,
     status: "completed",
     completedAt: new Date(),
+    pageCount: resumeStats.pageCount ?? session.pageCount ?? 0,
   });
 
   return {
     success: true,
-    message: `[ok] Resume complete: ${stats.tweetsCollected} total tweets, ${stats.usersCreated} users created`,
+    message: `[ok] Resume complete: ${resumeStats.tweetsCollected} total tweets, ${resumeStats.usersCreated} users created`,
   };
 }

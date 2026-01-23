@@ -29,7 +29,8 @@
     "test:e2e": "bun test tests/e2e",
     "test:quick": "bun run test:modules",
     "test:all": "bun run tests/run-all-tests.ts",
-    "test:ci": "bun run test:modules"
+    "test:ci": "bun run test:modules",
+    "test-live": "XGPT_LIVE=1 bun test tests/live"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

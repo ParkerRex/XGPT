@@ -102,6 +102,33 @@ xgpt search "YC demo day, fundraising" --mode top --embed
 xgpt search --resume 42
 ```
 
+### Composable Timeline Commands
+
+Fetch smaller timelines for composition and scripting:
+
+```bash
+# Fetch a single tweet
+xgpt read 1918410259571106051
+xgpt read https://x.com/ID_AA_Carmack/status/1918410259571106051
+
+# Fetch author thread for a tweet
+xgpt thread 1918410259571106051 --max 200
+
+# Fetch replies to a tweet (paginated)
+xgpt replies 1918410259571106051 --max 200 --cursor <cursor>
+
+# Fetch a user's timeline
+xgpt user-tweets ID_AA_Carmack --max 200 --include-replies
+
+# Fetch mentions for a user
+xgpt mentions --user ID_AA_Carmack --max 200
+```
+
+Common flags:
+- `--no-save` to skip database persistence
+- `--json` for machine-readable output
+- `--cursor`, `--max-pages`, `--all`, `--delay` for pagination control
+
 ### User Discovery
 
 Find Twitter profiles by bio, name, or keywords:
@@ -118,6 +145,14 @@ xgpt users discover "indie hacker" --json
 ```
 
 Discovered profiles can be saved to the database with `--save`, storing bio, location, follower counts, and verification status.
+
+## Script-Friendly Output
+
+Use script mode for stable JSON output suitable for automation:
+
+```bash
+xgpt search "AGI, GPT-5" --script
+```
 
 ## Configuration
 

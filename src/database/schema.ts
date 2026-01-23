@@ -1,4 +1,10 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // Users table - tracks scraped Twitter users
@@ -96,6 +102,18 @@ export const scrapeSessions = sqliteTable("scrape_sessions", {
   timeRange: text("time_range").notNull(), // 'week', 'month', etc.
   customDateRange: text("custom_date_range", { mode: "json" }), // { start, end }
   maxTweets: integer("max_tweets").notNull(),
+  includeReplies: integer("include_replies", { mode: "boolean" }).default(
+    false,
+  ),
+  includeRetweets: integer("include_retweets", { mode: "boolean" }).default(
+    false,
+  ),
+  rateLimitProfile: text("rate_limit_profile"),
+
+  // Resume support
+  cursor: text("cursor"),
+  lastTweetId: text("last_tweet_id"),
+  pageCount: integer("page_count").default(0),
 
   // Session results
   tweetsCollected: integer("tweets_collected").default(0),
@@ -109,6 +127,7 @@ export const scrapeSessions = sqliteTable("scrape_sessions", {
   startedAt: integer("started_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
+  lastUpdatedAt: integer("last_updated_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
   errorMessage: text("error_message"),
 
@@ -180,6 +199,7 @@ export const searchSessions = sqliteTable("search_sessions", {
   // Resume support
   cursor: text("cursor"),
   lastTweetId: text("last_tweet_id"),
+  pageCount: integer("page_count").default(0),
 
   // Results
   tweetsCollected: integer("tweets_collected").default(0),
@@ -193,12 +213,45 @@ export const searchSessions = sqliteTable("search_sessions", {
   startedAt: integer("started_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
+  lastUpdatedAt: integer("last_updated_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
   errorMessage: text("error_message"),
   embeddingsGenerated: integer("embeddings_generated", {
     mode: "boolean",
   }).default(false),
 });
+
+// Discover sessions table - profile search runs
+export const discoverSessions = sqliteTable(
+  "discover_sessions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    query: text("query").notNull(),
+    maxProfiles: integer("max_profiles").notNull(),
+    saveResults: integer("save_results", { mode: "boolean" }).default(false),
+
+    // Resume support
+    cursor: text("cursor"),
+    lastProfileId: text("last_profile_id"),
+    pageCount: integer("page_count").default(0),
+
+    // Results
+    profilesFound: integer("profiles_found").default(0),
+
+    // Status
+    status: text("status").notNull().default("pending"),
+    startedAt: integer("started_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    lastUpdatedAt: integer("last_updated_at", { mode: "timestamp" }),
+    completedAt: integer("completed_at", { mode: "timestamp" }),
+    errorMessage: text("error_message"),
+  },
+  (table) => ({
+    statusIdx: index("idx_discover_sessions_status").on(table.status),
+    startedIdx: index("idx_discover_sessions_started").on(table.startedAt),
+  }),
+);
 
 // Tweet search origins table - links tweets to searches (first origin only)
 export const tweetSearchOrigins = sqliteTable(
@@ -220,6 +273,31 @@ export const tweetSearchOrigins = sqliteTable(
   (table) => ({
     sessionIdx: index("idx_origins_session").on(table.searchSessionId),
     variantIdx: index("idx_origins_variant").on(table.matchedVariant),
+  }),
+);
+
+// Query ID cache - stores GraphQL query IDs by operation and feature signature
+export const queryIdCache = sqliteTable(
+  "query_id_cache",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    operationName: text("operation_name").notNull(),
+    featureSignature: text("feature_signature").notNull(),
+    queryId: text("query_id").notNull(),
+    source: text("source").notNull(),
+    fetchedAt: integer("fetched_at", { mode: "timestamp" }).notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp" }).notNull(),
+    useCount: integer("use_count").notNull(),
+    status: text("status").notNull(),
+    error: text("error"),
+  },
+  (table) => ({
+    operationSignatureIdx: uniqueIndex(
+      "uidx_query_id_cache_operation_signature",
+    ).on(table.operationName, table.featureSignature),
+    expiresIdx: index("idx_query_id_cache_expires").on(table.expiresAt),
+    lastUsedIdx: index("idx_query_id_cache_last_used").on(table.lastUsedAt),
   }),
 );
 
@@ -303,8 +381,14 @@ export type NewSearchTopic = typeof searchTopics.$inferInsert;
 export type SearchSession = typeof searchSessions.$inferSelect;
 export type NewSearchSession = typeof searchSessions.$inferInsert;
 
+export type DiscoverSession = typeof discoverSessions.$inferSelect;
+export type NewDiscoverSession = typeof discoverSessions.$inferInsert;
+
 export type TweetSearchOrigin = typeof tweetSearchOrigins.$inferSelect;
 export type NewTweetSearchOrigin = typeof tweetSearchOrigins.$inferInsert;
+
+export type QueryIdCacheEntry = typeof queryIdCache.$inferSelect;
+export type NewQueryIdCacheEntry = typeof queryIdCache.$inferInsert;
 
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;

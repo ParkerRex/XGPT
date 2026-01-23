@@ -305,3 +305,52 @@ export class NetworkError extends XGPTError {
     }, cause);
   }
 }
+
+/**
+ * Query ID invalidation errors
+ */
+export class QueryIdInvalidError extends XGPTError {
+  constructor(message: string, context?: ErrorContext, cause?: Error) {
+    super({
+      code: "QUERY_ID_INVALID",
+      category: ErrorCategory.API_ERROR,
+      severity: ErrorSeverity.MEDIUM,
+      title: "Query ID Invalid",
+      message,
+      context,
+      recoveryActions: [
+        {
+          description: "Retry the request to refresh the cached query ID",
+        },
+        {
+          description: "Enable snapshot fallback if disabled",
+          command: "xgpt config set advanced.queryIdCacheSnapshotEnabled true",
+        },
+      ],
+    }, cause);
+  }
+}
+
+/**
+ * Query ID discovery errors
+ */
+export class QueryIdDiscoveryError extends XGPTError {
+  constructor(message: string, context?: ErrorContext, cause?: Error) {
+    super({
+      code: "QUERY_ID_DISCOVERY_FAILED",
+      category: ErrorCategory.API_ERROR,
+      severity: ErrorSeverity.MEDIUM,
+      title: "Query ID Discovery Failed",
+      message,
+      context,
+      recoveryActions: [
+        {
+          description: "Retry the operation after a short delay",
+        },
+        {
+          description: "Check if the Twitter/X GraphQL API is available",
+        },
+      ],
+    }, cause);
+  }
+}

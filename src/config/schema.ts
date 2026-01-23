@@ -17,6 +17,8 @@ export interface UserConfig {
     maxTweets: number;
     includeReplies: boolean;
     includeRetweets: boolean;
+    pageDelayMs: number;
+    maxPages?: number;
     defaultKeywords: string[];
     defaultTimeRange: 'last-week' | 'last-month' | 'last-3-months' | 'last-6-months' | 'last-year' | 'lifetime';
   };
@@ -37,7 +39,7 @@ export interface UserConfig {
 
   // Output Preferences
   output: {
-    format: 'json' | 'csv' | 'markdown' | 'txt';
+    format: 'json' | 'jsonl' | 'csv' | 'markdown' | 'txt';
     includeMetadata: boolean;
     timestampFormat: 'iso' | 'relative' | 'human';
   };
@@ -55,6 +57,8 @@ export interface UserConfig {
     databasePath?: string;
     cacheEnabled: boolean;
     cacheTtlHours: number;
+    queryIdCacheMaxEntries: number;
+    queryIdCacheSnapshotEnabled: boolean;
     backupEnabled: boolean;
     maxBackupFiles: number;
   };
@@ -70,6 +74,8 @@ export const DEFAULT_CONFIG: UserConfig = {
     maxTweets: 1000,
     includeReplies: false,
     includeRetweets: false,
+    pageDelayMs: 0,
+    maxPages: undefined,
     defaultKeywords: [],
     defaultTimeRange: 'last-month',
   },
@@ -102,6 +108,8 @@ export const DEFAULT_CONFIG: UserConfig = {
   advanced: {
     cacheEnabled: true,
     cacheTtlHours: 24,
+    queryIdCacheMaxEntries: 200,
+    queryIdCacheSnapshotEnabled: true,
     backupEnabled: true,
     maxBackupFiles: 5,
   },
@@ -113,14 +121,17 @@ export const DEFAULT_CONFIG: UserConfig = {
 export const CONFIG_VALIDATION = {
   'scraping.rateLimitProfile': ['conservative', 'moderate', 'aggressive'],
   'scraping.maxTweets': { min: 1, max: 50000 },
+  'scraping.pageDelayMs': { min: 0, max: 600000 },
+  'scraping.maxPages': { min: 0, max: 10000 },
   'scraping.defaultTimeRange': ['last-week', 'last-month', 'last-3-months', 'last-6-months', 'last-year', 'lifetime'],
   'embedding.model': ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-ada-002'],
   'embedding.batchSize': { min: 1, max: 2000 },
   'query.defaultTopK': { min: 1, max: 50 },
   'query.defaultThreshold': { min: 0, max: 1 },
-  'output.format': ['json', 'csv', 'markdown', 'txt'],
+  'output.format': ['json', 'jsonl', 'csv', 'markdown', 'txt'],
   'output.timestampFormat': ['iso', 'relative', 'human'],
   'advanced.cacheTtlHours': { min: 1, max: 168 }, // 1 hour to 1 week
+  'advanced.queryIdCacheMaxEntries': { min: 10, max: 2000 },
   'advanced.maxBackupFiles': { min: 1, max: 50 },
 } as const;
 
@@ -135,6 +146,8 @@ export type ConfigKeyPath =
   | 'scraping.maxTweets'
   | 'scraping.includeReplies'
   | 'scraping.includeRetweets'
+  | 'scraping.pageDelayMs'
+  | 'scraping.maxPages'
   | 'scraping.defaultKeywords'
   | 'scraping.defaultTimeRange'
   | 'embedding.model'
@@ -153,6 +166,8 @@ export type ConfigKeyPath =
   | 'advanced.databasePath'
   | 'advanced.cacheEnabled'
   | 'advanced.cacheTtlHours'
+  | 'advanced.queryIdCacheMaxEntries'
+  | 'advanced.queryIdCacheSnapshotEnabled'
   | 'advanced.backupEnabled'
   | 'advanced.maxBackupFiles';
 
@@ -167,6 +182,8 @@ export const CONFIG_DESCRIPTIONS: Record<ConfigKeyPath, string> = {
   'scraping.maxTweets': 'Default maximum number of tweets to scrape',
   'scraping.includeReplies': 'Include replies when scraping by default',
   'scraping.includeRetweets': 'Include retweets when scraping by default',
+  'scraping.pageDelayMs': 'Delay in milliseconds between pagination pages',
+  'scraping.maxPages': 'Maximum pagination pages to fetch (0 for no cap)',
   'scraping.defaultKeywords': 'Default keywords for filtering tweets',
   'scraping.defaultTimeRange': 'Default time range for scraping tweets',
   'embedding.model': 'OpenAI embedding model to use',
@@ -185,6 +202,8 @@ export const CONFIG_DESCRIPTIONS: Record<ConfigKeyPath, string> = {
   'advanced.databasePath': 'Custom path for SQLite database file',
   'advanced.cacheEnabled': 'Enable caching for improved performance',
   'advanced.cacheTtlHours': 'Cache time-to-live in hours',
+  'advanced.queryIdCacheMaxEntries': 'Maximum number of cached query IDs',
+  'advanced.queryIdCacheSnapshotEnabled': 'Enable snapshot fallback for query IDs',
   'advanced.backupEnabled': 'Enable automatic database backups',
   'advanced.maxBackupFiles': 'Maximum number of backup files to keep',
 };
@@ -203,6 +222,8 @@ export const CONFIG_CATEGORIES = {
     'scraping.maxTweets',
     'scraping.includeReplies',
     'scraping.includeRetweets',
+    'scraping.pageDelayMs',
+    'scraping.maxPages',
     'scraping.defaultKeywords',
     'scraping.defaultTimeRange',
   ],
@@ -231,6 +252,8 @@ export const CONFIG_CATEGORIES = {
     'advanced.databasePath',
     'advanced.cacheEnabled',
     'advanced.cacheTtlHours',
+    'advanced.queryIdCacheMaxEntries',
+    'advanced.queryIdCacheSnapshotEnabled',
     'advanced.backupEnabled',
     'advanced.maxBackupFiles',
   ],

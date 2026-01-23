@@ -29,6 +29,12 @@ export interface ScrapingOptions {
     end: Date;
   };
   rateLimitProfile?: string;
+  all?: boolean;
+  maxPages?: number;
+  cursor?: string;
+  delayMs?: number;
+  resume?: number;
+  fresh?: boolean;
 }
 
 export interface EmbeddingOptions {
@@ -65,6 +71,11 @@ export interface SearchOptions {
   dryRun: boolean;
   json: boolean;
   resume?: number;
+  all?: boolean;
+  maxPages?: number;
+  cursor?: string;
+  delayMs?: number;
+  fresh?: boolean;
   cleanup?: boolean;
   olderThan?: string;
 }
@@ -76,6 +87,9 @@ export interface SearchStats {
   usersCreated: number;
   embeddingsGenerated?: boolean;
   sessionId?: number;
+  pageCount?: number;
+  nextCursor?: string | null;
+  lastTweetId?: string | null;
 }
 
 // Pagination types

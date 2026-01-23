@@ -5,6 +5,7 @@
 
 import * as cliProgress from 'cli-progress';
 import { performance } from 'perf_hooks';
+import { shouldShowProgress } from '../utils/scriptMode.js';
 
 export interface ProgressOptions {
   // Display options
@@ -106,6 +107,13 @@ export abstract class ProgressIndicator {
       return `${seconds}s`;
     }
   }
+}
+
+class NoopProgressIndicator extends ProgressIndicator {
+  start(_total: number): void {}
+  update(_current: number, _context?: Partial<ProgressContext>): void {}
+  stop(): void {}
+  fail(_message?: string): void {}
 }
 
 /**
@@ -282,6 +290,10 @@ export class MultiStepProgress extends ProgressIndicator {
  * Factory function to create appropriate progress indicator
  */
 export function createProgressBar(options: ProgressOptions & { type?: 'single' | 'multi' } = {}): ProgressIndicator {
+  if (!shouldShowProgress()) {
+    return new NoopProgressIndicator(options);
+  }
+
   const { type = 'single', ...progressOptions } = options;
   
   if (type === 'multi' && progressOptions.steps) {

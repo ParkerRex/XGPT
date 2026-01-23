@@ -281,7 +281,8 @@ function parseConfigValue(
     keyPath.includes("batchSize") ||
     keyPath.includes("defaultTopK") ||
     keyPath.includes("cacheTtlHours") ||
-    keyPath.includes("maxBackupFiles")
+    keyPath.includes("maxBackupFiles") ||
+    keyPath.includes("queryIdCacheMaxEntries")
   ) {
     const num = parseInt(value, 10);
     if (isNaN(num)) {

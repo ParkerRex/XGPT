@@ -14,6 +14,8 @@ export {
   DatabaseError,
   ValidationError,
   NetworkError,
+  QueryIdInvalidError,
+  QueryIdDiscoveryError,
 } from "./types.js";
 
 // Export TypeScript interfaces as types
