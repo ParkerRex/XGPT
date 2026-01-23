@@ -8,14 +8,14 @@ CLI tool for Twitter/X scraping and semantic search. Scrape tweets, generate emb
 bun install
 cp .env.example .env  # Add OPENAI_KEY, AUTH_TOKEN, CT0
 bun run src/cli.ts db --init
-bun dev                       # Start web UI at localhost:3001
+bun dev                       # Start web UI at localhost:3002
 ```
 
 ## Commands
 
 ```bash
 # Development
-bun dev                       # Start web UI at localhost:3001
+bun dev                       # Start web UI at localhost:3002
 bun cli                       # Run CLI directly
 
 # Core Commands
@@ -35,7 +35,7 @@ xgpt config list              # Show config
 Start a browser-based interface with all CLI functionality:
 
 ```bash
-bun dev                       # http://localhost:3001
+bun dev                       # http://localhost:3002
 xgpt serve --port 8080        # Custom port
 ```
 
@@ -46,6 +46,7 @@ Features:
 - **Discover** - Find Twitter profiles by bio/keywords
 - **Ask** - AI Q&A with relevant tweets
 - **Config** - Edit settings inline
+- **Job Taskbar** - Real-time progress for long operations
 
 ### Search Command
 
@@ -108,11 +109,29 @@ Discovered profiles can be saved to the database with `--save`, storing bio, loc
 
 ## Documentation
 
-- [Setup](docs/setup.md) - Installation, cookies, environment
+### Getting Started
+- [Setup](docs/setup.md) - Installation, cookies, environment variables
 - [Usage](docs/usage.md) - Commands, filtering, configuration
+
+### Architecture
+- [Architecture](docs/architecture.md) - Project structure, data flow, dependencies
 - [Database](docs/database.md) - Schema, migrations, optimization
-- [Architecture](docs/architecture.md) - Project structure, data flow
-- [Testing](docs/testing.md) - Test commands
+- [Server](docs/server.md) - Web server architecture, routes, templates
+
+### Core Systems
+- [Error Handling](docs/errors.md) - Error categories, recovery suggestions, API errors
+- [Job Tracking](docs/jobs.md) - Job lifecycle, cancellation, SSE updates
+- [Commands](docs/commands.md) - Command runner pattern, execution flow
+- [Validation](docs/validation.md) - Input validation with TypeBox
+
+### Reference
+- [API Reference](docs/api-reference.md) - REST API endpoints
+- [Configuration](docs/configuration.md) - All config options and defaults
+- [Components](docs/components.md) - UI component library
+- [Utilities](docs/utilities.md) - Retry logic, formatting, helpers
+
+### Development
+- [Testing](docs/testing.md) - Unit, integration, and E2E testing
 
 ## Tech Stack
 
@@ -126,7 +145,7 @@ Discovered profiles can be saved to the database with `--save`, storing bio, loc
 ## Development
 
 ```bash
-bun dev               # Start web UI (localhost:3001)
+bun dev               # Start web UI (localhost:3002)
 bun cli               # Run CLI
 bun test              # Run tests
 bun run typecheck     # Type check

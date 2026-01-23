@@ -5,7 +5,7 @@
 The easiest way to use XGPT with a visual interface:
 
 ```bash
-bun dev                       # Start at http://localhost:3001
+bun dev                       # Start at http://localhost:3002
 xgpt serve --port 8080        # Custom port
 ```
 

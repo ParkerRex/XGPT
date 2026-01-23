@@ -58,7 +58,7 @@ Examples:
   $ xgpt scrape elonmusk          # Direct scrape tweets from @elonmusk
   $ xgpt embed                    # Generate embeddings for scraped tweets
   $ xgpt ask "What about AI?"     # Ask questions about the tweets
-  $ xgpt serve                    # Start the web UI at localhost:3000
+  $ xgpt serve                    # Start the web UI at localhost:3002
   $ xgpt db --stats               # Show database statistics
   $ xgpt config list              # Show all configuration settings
   $ xgpt config set scraping.rateLimitProfile moderate  # Set rate limit profile
