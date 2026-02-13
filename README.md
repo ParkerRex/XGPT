@@ -1,3 +1,8 @@
+Project name: X-GPT
+One liner: AI-powered CLI and web UI for scraping Twitter/X, generating embeddings, and answering questions from tweet data.
+Stack: Bun, TypeScript, SQLite, Drizzle ORM, OpenAI API, Elysia, HTMX, Commander.js, @the-convocation/twitter-scraper
+Problem: Turning Twitter/X content into searchable, reliable insights is manual and fragmented; this project automates scraping, indexing, and semantic Q&A.
+
 # X-GPT
 
 CLI tool for Twitter/X scraping and semantic search. Scrape tweets, generate embeddings, ask questions, discover users.
